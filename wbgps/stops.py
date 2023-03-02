@@ -23,20 +23,19 @@ def get_most_frequent_label(a):
     return None
 
 
-def compute_intervals(centroids, labels, timestamps, accuracy, input_data):
-    """If the label is -1 it means that the point doesn't belong to any cluster. Otherwise there should be at least 2 points for a stop locations
-    and they should
-       assert (len(centroids) == len(community_labels))
+def compute_intervals(centroids, labels, timestamps, accuracy):
+    """If the label is -1 it means that the point doesn't belong to any cluster. Otherwise there should be at least 2 points for a stop locations and they should assert (len(centroids) == len(community_labels))
+
     Args:
-        centroids (_type_): _description_
-        labels (_type_): _description_
-        timestamps (_type_): _description_
-        accuracy (_type_): _description_
-        input_data (_type_): _description_
+        centroids (list): List with coordinate tuple
+        labels (int): Stop label
+        timestamps (date): Timestamp of ping
+        accuracy (float): Accuracy associated to the GPS point
 
     Returns:
-        _type_: _description_
+        list: list with consecutive locations of a users
     """
+    
     i = 0
     seen = 0
     trajectory = []

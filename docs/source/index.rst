@@ -10,8 +10,9 @@ Welcome to wbgps's documentation!
    :maxdepth: 2
    :caption: Contents:
 
-intro
-wbgps
+   intro.rst
+   modules.rst
+   wbgps.rst
 
 Indices and tables
 ==================

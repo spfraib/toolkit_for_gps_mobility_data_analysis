@@ -12,12 +12,21 @@ from pyspark.sql import Window
 
 
 def google_change_metric(df_original, start_baseline, end_baseline, other_groups=[]):
-    '''
-    INPUT:  dataframe with (at least) 2 columns named "mean" and "sem"
-    OUTPUT: dataframe with the values of the two columns converted to google
-            change metric
-    NOTE: Google uses as baseline period the 5-weeks period from Jan 3 to Feb 6
-    '''
+    """Metric change with respect of a baseline period
+
+    Args:
+        df_original (DataFrame): Dataframe with (at least) a column named 'mean' and one 'sem'
+        start_baseline (date): Date (ymd) from which a baseline period starts
+        end_baseline (date): Date (ymd) from which a baseline period ends
+        other_groups (list, optional): Grouping variables. Defaults to [].
+
+    Returns:
+        Dataframe: Dataframe with the values of the two columns converted to Google's change
+        with respect of the mean value of the baseline period
+
+    NOTES:
+        Google uses as baseline period the 5-weeks period from Jan 3 to Feb 6
+    """
     df = df_original.copy()
 
     # compute weekday baseline values
@@ -39,10 +48,21 @@ def google_change_metric(df_original, start_baseline, end_baseline, other_groups
 
 
 def base_diff_metric(df_original, frac, start_baseline, end_baseline, other_groups=[]):
-    '''
-    INPUT:  dataframe with (at least) 2 columns named "mean" and "sem"
-    OUTPUT: dataframe with the values of the two columns converted to change wrt the baseline
-    '''
+    """Metric change with respect of a baseline period
+
+    Args:
+        df_original (DataFrame): Dataframe with (at least) a column named 'mean' and one 'sem'
+        start_baseline (date): Date (ymd) from which a baseline period starts
+        end_baseline (date): Date (ymd) from which a baseline period ends
+        other_groups (list, optional): Grouping variables. Defaults to [].
+
+    Returns:
+        Dataframe: Dataframe with the values of the two columns converted to Google's change
+        with respect of the mean value of the baseline period
+
+    NOTES:
+        Google uses as baseline period the 5-weeks period from Jan 3 to Feb 6
+    """
     df = df_original.rename(columns={frac: 'mean'}).reset_index().set_index('date').copy()
     baseline = df.loc[start_baseline:end_baseline, ['mean'] + other_groups].copy()
     baseline['weekday'] = list(baseline.index.dayofweek.values)
@@ -58,12 +78,19 @@ def base_diff_metric(df_original, frac, start_baseline, end_baseline, other_grou
 
 
 def process_admin(country, admin_path):
-    '''
-    INPUT:  country ISO code, path to the admin files (saved as "{country}/admin.csv" files)
-    OUTPUT: three pandas dataframes
-            - "admins_by_country": all country administrative units with socio-economic group assigned based on entire country
-            - "admins_by_metro_area":
-    '''
+    """Process the administrative units with census values and returns the wealth percentile by country and metropolitan area
+
+    Args:
+        country (str): Two letter ISO code of country.
+        admin_path (str): Absolute or relative path to the folder with the administrative units per country.
+
+    Returns:
+        admins_by_country (Dataframe): All country administrative units with socio-economic group assigned based on entire country
+        admins_by_metro_area (Dataframe): Administrative units that belong to a metropolitan area, with socio-economic group assigned based on the metropolitan area
+        pop_metro_areas (Dataframe): Names of metro areas with latest census population
+
+
+    """
     cols = ['geom_id', 'metro_area_name', 'pop', 'wealth_index']
     admin = spark.read.option('header', 'true').csv(admin_path + f'{country}/admin.csv').toPandas()
     admins = admins[[cols]]
