@@ -1,0 +1,9 @@
+pandas
+numpy
+pyarrow
+infomap
+infostop
+pyspark
+sklearn
+seaborn
+datetime
