@@ -26,6 +26,7 @@ def google_change_metric(df_original, start_baseline, end_baseline, other_groups
 
     NOTES:
         Google uses as baseline period the 5-weeks period from Jan 3 to Feb 6
+
     """
     df = df_original.copy()
 
@@ -62,6 +63,7 @@ def base_diff_metric(df_original, frac, start_baseline, end_baseline, other_grou
 
     NOTES:
         Google uses as baseline period the 5-weeks period from Jan 3 to Feb 6
+
     """
     df = df_original.rename(columns={frac: 'mean'}).reset_index().set_index('date').copy()
     baseline = df.loc[start_baseline:end_baseline, ['mean'] + other_groups].copy()
@@ -157,16 +159,41 @@ def get_active_list(durations, country, activity_level):
     return active_users
 
 
-def compute_durations_and_admins(country, data_date, stop_path, activity_level=0,
+def compute_durations_and_admins(stops, durations, country, data_date, stop_path, activity_level=0,
                                  hw=28, ww=28, wa=900, mph=10, mpw=7):
-    personal_nf = f"personal_stop_location_hw{hw}_ww{ww}_wa{wa}_mph{mph}_mpw{mpw}"
-    stops = spark.read.parquet(
-        f"{stop_path}{country}/accuracy100_maxtimestop3600_staytime300_radius50_dbscanradius50/date{data_date}/" + personal_nf)
+    """Compute the durations of the stops and the administrative units of the stops
 
-    fname_nf = f'durations_window_hw{hw}_ww{ww}_wa{wa}_mph{mph}_mpw{mpw}'
-    durations_path_nf = f'{stop_path}{country}/accuracy100_maxtimestop3600_staytime300_radius50_dbscanradius50/date{data_date}/' + fname_nf
-    durations = spark.read.parquet(durations_path_nf)
+    Args:
+        stops (Dataframe): Spark Dataframe with the following columns:
+            - user_id: User ID
+            - date_trunc: Date of the stop
+        durations (Dataframe): Spark Dataframe with the following columns:
+            - user_id: User ID
+            - date_trunc: Date of the stop
+            - duration: Duration of the stop in minutes
+        country (str): Two letter ISO code of country.
+        data_date (str): Date of the data (format: YYYY-MM-DD).
+        stop_path (str): Absolute or relative path to the folder with the stops per country.
+        activity_level (int, optional): Percent of total days to be active. Defaults to 0.
+        hw (int, optional): Size of the window in days, over which a Home can be located. Defaults to 28.
+        ww (int, optional): Size of the window in day, over which a Work can be located. Defaults to 28.
+        wa (int, optional): Minimum value in minutes for the average total time spent per day a t a stop location to be labelled as work location. Defaults to 900.
+        mph (int, optional): Minimum pings per hour to determine a stop. Defaults to 10.
+        mpw (int, optional): Minimum stops per week to determine a stop location. Defaults to 7.
 
+    Returns:
+        Data Frame: Data frame with the following columns:
+            - user_id: User ID
+            - date_trunc: Date of the stop
+            - stop_id: Stop ID
+            - duration: Duration of the stop
+            - admin_id: Administrative unit ID
+            - H: Duration of the stop at home
+            - W: Duration of the stop at work
+            - O: Duration of the stop at other locations
+            - C: Times the user was at home and work on the same day
+            - R: If the user stayed at home the whole day
+    """
     # aggregate day/night
     durations = (durations
                  .groupby('date_trunc', 'user_id')

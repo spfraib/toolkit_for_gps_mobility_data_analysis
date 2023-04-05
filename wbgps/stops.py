@@ -35,7 +35,6 @@ def compute_intervals(centroids, labels, timestamps, accuracy):
     Returns:
         list: list with consecutive locations of a users
     """
-    
     i = 0
     seen = 0
     trajectory = []
