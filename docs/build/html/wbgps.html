@@ -355,7 +355,21 @@ bins_wealth (list): List of wealth bins</p>
 <dl class="py function">
 <dt class="sig sig-object py" id="wbgps.analysis.compute_rural_migration_stats">
 <span class="sig-prename descclassname"><span class="pre">wbgps.analysis.</span></span><span class="sig-name descname"><span class="pre">compute_rural_migration_stats</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">country</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">hw</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">ww</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">wa</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">mph</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">mpw</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">c_dates</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">stop_path</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/wbgps/analysis.html#compute_rural_migration_stats"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#wbgps.analysis.compute_rural_migration_stats" title="Permalink to this definition"></a></dt>
-<dd></dd></dl>
+<dd><p>Compute rural migration stats.</p>
+<dl class="simple">
+<dt>Args:</dt><dd><p>country (str): Country name.
+hw (int): Home window.
+ww (int): Work window.
+wa (int): Work activity.
+mph (float): Minimum point home duration.
+mpw (float): Minimum point work duration.
+c_dates (list): List of dates.
+stop_path (str): Path to stops.</p>
+</dd>
+<dt>Returns:</dt><dd><p>DF: Dataframe with rural migration stats.</p>
+</dd>
+</dl>
+</dd></dl>
 
 <dl class="py function">
 <dt class="sig sig-object py" id="wbgps.analysis.compute_rural_migration_stats_city">
@@ -406,12 +420,56 @@ OUTPUT: list of active individuals “user_id”</p>
 <dl class="py function">
 <dt class="sig sig-object py" id="wbgps.analysis.get_migration_results">
 <span class="sig-prename descclassname"><span class="pre">wbgps.analysis.</span></span><span class="sig-name descname"><span class="pre">get_migration_results</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">results</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">users</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">state</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">frac</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'net_rural_fraction'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">change</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">True</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">cumulated</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">True</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/wbgps/analysis.html#get_migration_results"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#wbgps.analysis.get_migration_results" title="Permalink to this definition"></a></dt>
-<dd></dd></dl>
+<dd><p>Get migration results.</p>
+<dl class="simple">
+<dt>Args:</dt><dd><p>results (DF): Dataframe with migration results.
+users (list): List of users.
+state (str): State name.
+frac (str, optional): Type of analysis. Defaults to ‘net_rural_fraction’.
+change (bool, optional): Wether is absolute or percentage change. Defaults to True.
+cumulated (bool, optional): Cumulative. Defaults to True.</p>
+</dd>
+<dt>Returns:</dt><dd><p>DF: Dataframe with migration results.</p>
+</dd>
+</dl>
+</dd></dl>
 
 <dl class="py function">
 <dt class="sig sig-object py" id="wbgps.analysis.get_single_metric_results">
 <span class="sig-prename descclassname"><span class="pre">wbgps.analysis.</span></span><span class="sig-name descname"><span class="pre">get_single_metric_results</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">results</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">metric</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">state</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">other_groups</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">[]</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/wbgps/analysis.html#get_single_metric_results"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#wbgps.analysis.get_single_metric_results" title="Permalink to this definition"></a></dt>
-<dd></dd></dl>
+<dd><p>Get single metric results.</p>
+<dl>
+<dt>Args:</dt><dd><dl class="simple">
+<dt>results (DF): Dataframe with the following columns:</dt><dd><ul class="simple">
+<li><p>date</p></li>
+<li><p>measure</p></li>
+<li><p>state</p></li>
+<li><p>wealth_label_home</p></li>
+<li><p>wealth_label_work</p></li>
+<li><p>mean</p></li>
+<li><p>sem</p></li>
+</ul>
+</dd>
+</dl>
+<p>metric (str): Metric name.
+state (str): State name.
+other_groups (list, optional): Other groups. Defaults to [].</p>
+</dd>
+<dt>Returns:</dt><dd><dl class="simple">
+<dt>DF: Dataframe with the following columns:</dt><dd><ul class="simple">
+<li><p>date</p></li>
+<li><p>measure</p></li>
+<li><p>state</p></li>
+<li><p>wealth_label_home</p></li>
+<li><p>wealth_label_work</p></li>
+<li><p>mean</p></li>
+<li><p>sem</p></li>
+</ul>
+</dd>
+</dl>
+</dd>
+</dl>
+</dd></dl>
 
 <dl class="py function">
 <dt class="sig sig-object py" id="wbgps.analysis.google_change_metric">
@@ -503,7 +561,19 @@ with respect of the mean value of the baseline period</p>
 <dl class="py function">
 <dt class="sig sig-object py" id="wbgps.analysis.plot_migration">
 <span class="sig-prename descclassname"><span class="pre">wbgps.analysis.</span></span><span class="sig-name descname"><span class="pre">plot_migration</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">results</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">states</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">color_n</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">[1,</span> <span class="pre">2,</span> <span class="pre">6]</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">cols</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">3</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">fs</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">6</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">lw</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">1.1</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/wbgps/analysis.html#plot_migration"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#wbgps.analysis.plot_migration" title="Permalink to this definition"></a></dt>
-<dd></dd></dl>
+<dd><p>Plot migration results</p>
+<dl class="simple">
+<dt>Args:</dt><dd><p>results (DF): DF with migration results. See <cite>get_migration_results</cite> for details.
+states (str): Which states to plot.
+color_n (list, optional): List of colors. Defaults to [1, 2, 6].
+cols (int, optional): Number of columns in plot. Defaults to 3.
+fs (int, optional): Defaults to 6.
+lw (float, optional): Defaults to 1.1.</p>
+</dd>
+<dt>Returns:</dt><dd><p>Graphic: Plot of migration results.</p>
+</dd>
+</dl>
+</dd></dl>
 
 <dl class="py function">
 <dt class="sig sig-object py" id="wbgps.analysis.plot_results">
@@ -571,7 +641,8 @@ pop_metro_areas (Dataframe): Names of metro areas with latest census population<
 <dl class="py function">
 <dt class="sig sig-object py" id="wbgps.analysis.set_plot_style">
 <span class="sig-prename descclassname"><span class="pre">wbgps.analysis.</span></span><span class="sig-name descname"><span class="pre">set_plot_style</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">ax</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">state</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">xlim</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">ylim</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">title</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">xlabel</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">ylabel</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">byweekday</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">add_important_dates</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">True</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">weeks_interval</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">2</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">fs</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">10</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/wbgps/analysis.html#set_plot_style"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#wbgps.analysis.set_plot_style" title="Permalink to this definition"></a></dt>
-<dd></dd></dl>
+<dd><p>Set plot style.</p>
+</dd></dl>
 
 </section>
 <section id="module-wbgps.labeling">

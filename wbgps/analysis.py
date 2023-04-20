@@ -660,6 +660,22 @@ def compute_rural_migration_stats_city(country, bins_wealth, labels_wealth, hw, 
 
 
 def compute_rural_migration_stats(country, hw, ww, wa, mph, mpw, c_dates, stop_path):
+    """Compute rural migration stats.
+
+    Args:
+        country (str): Country name.
+        hw (int): Home window.
+        ww (int): Work window.
+        wa (int): Work activity.
+        mph (float): Minimum point home duration.
+        mpw (float): Minimum point work duration.
+        c_dates (list): List of dates.
+        stop_path (str): Path to stops.
+
+    Returns:
+        DF: Dataframe with rural migration stats.
+
+    """
     # read admin
     admin = read_admin(country)
 
@@ -724,6 +740,20 @@ def compute_rural_migration_stats(country, hw, ww, wa, mph, mpw, c_dates, stop_p
 
 
 def get_migration_results(results, users, state, frac='net_rural_fraction', change=True, cumulated=True):
+    """Get migration results.
+
+    Args:
+        results (DF): Dataframe with migration results.
+        users (list): List of users.
+        state (str): State name.
+        frac (str, optional): Type of analysis. Defaults to 'net_rural_fraction'.
+        change (bool, optional): Wether is absolute or percentage change. Defaults to True.
+        cumulated (bool, optional): Cumulative. Defaults to True.
+
+    Returns:
+        DF: Dataframe with migration results.
+
+    """
     tmp = results[results['country'] == state].copy()
     tmp = tmp.loc[tmp["date"] < pd.to_datetime(c_dates[state])]
     tmp = tmp.sort_values(by=['wealth_label', 'change', 'date'])
@@ -756,6 +786,32 @@ def get_migration_results(results, users, state, frac='net_rural_fraction', chan
 
 
 def get_single_metric_results(results, metric, state, other_groups=[]):
+    """Get single metric results.
+
+    Args:
+        results (DF): Dataframe with the following columns:
+            - date
+            - measure
+            - state
+            - wealth_label_home
+            - wealth_label_work
+            - mean
+            - sem
+        metric (str): Metric name.
+        state (str): State name.
+        other_groups (list, optional): Other groups. Defaults to [].
+
+    Returns:
+        DF: Dataframe with the following columns:
+            - date
+            - measure
+            - state
+            - wealth_label_home
+            - wealth_label_work
+            - mean
+            - sem
+
+    """
     if not '_hw' in metric:
         res = results[(results['state'] == state) & (results['measure'] == metric)].set_index('date')
         res = google_change_metric(res, start_baseline, end_baseline, other_groups=other_groups).reset_index()
@@ -771,8 +827,8 @@ def get_single_metric_results(results, metric, state, other_groups=[]):
                     rm[(rm.index >= start_date) & (rm.index <= end_date)].rolling(ma).mean().max().max())
 
 
-def set_plot_style(ax, state, xlim=None, ylim=None, title=None, xlabel=None, ylabel=None, byweekday=0,
-                   add_important_dates=True, weeks_interval=2, fs=10):
+def set_plot_style(ax, state, xlim=None, ylim=None, title=None, xlabel=None, ylabel=None, byweekday=0, add_important_dates=True, weeks_interval=2, fs=10):
+    """Set plot style. """
     if title:
         ax.set_title(title, fontsize=fs + 2)
     if xlabel:
@@ -868,6 +924,19 @@ def plot_metrics(results, states, metrics=['rec', 'comms', 'comms_hw'],
 
 ### Analysis plots: Migration
 def plot_migration(results, states, color_n=[1, 2, 6], cols=3, fs=6, lw=1.1):
+    """Plot migration results
+
+    Args:
+        results (DF): DF with migration results. See `get_migration_results` for details.
+        states (str): Which states to plot.
+        color_n (list, optional): List of colors. Defaults to [1, 2, 6].
+        cols (int, optional): Number of columns in plot. Defaults to 3.
+        fs (int, optional): Defaults to 6.
+        lw (float, optional): Defaults to 1.1.
+
+    Returns:
+        Graphic: Plot of migration results.
+    """
     alph = list(string.ascii_lowercase)
     xlims = (pd.to_datetime(start_date), pd.to_datetime(end_date))
     lm = len(states)
