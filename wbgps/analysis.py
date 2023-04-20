@@ -49,20 +49,16 @@ def google_change_metric(df_original, start_baseline, end_baseline, other_groups
 
 
 def base_diff_metric(df_original, frac, start_baseline, end_baseline, other_groups=[]):
-    """Metric change with respect of a baseline period
+    """Metric change with respect of a baseline period. NOTES: Google uses as baseline period the 5-weeks period from Jan 3 to Feb 6.
 
     Args:
-        df_original (DataFrame): Dataframe with (at least) a column named 'mean' and one 'sem'
+        df_original (DF): Dataframe with (at least) a column named 'mean' and one 'sem'
         start_baseline (date): Date (ymd) from which a baseline period starts
         end_baseline (date): Date (ymd) from which a baseline period ends
         other_groups (list, optional): Grouping variables. Defaults to [].
 
     Returns:
-        Dataframe: Dataframe with the values of the two columns converted to Google's change
-        with respect of the mean value of the baseline period
-
-    NOTES:
-        Google uses as baseline period the 5-weeks period from Jan 3 to Feb 6
+        Dataframe: Dataframe with the values of the two columns converted to Google's change with respect of the mean value of the baseline period
 
     """
     df = df_original.rename(columns={frac: 'mean'}).reset_index().set_index('date').copy()
@@ -159,8 +155,7 @@ def get_active_list(durations, country, activity_level):
     return active_users
 
 
-def compute_durations_and_admins(stops, durations, country, data_date, stop_path, activity_level=0,
-                                 hw=28, ww=28, wa=900, mph=10, mpw=7):
+def compute_durations_and_admins(stops, durations, country, data_date, stop_path, activity_level=0, hw=28, ww=28, wa=900, mph=10, mpw=7):
     """Compute the durations of the stops and the administrative units of the stops
 
     Args:
@@ -193,6 +188,7 @@ def compute_durations_and_admins(stops, durations, country, data_date, stop_path
             - O: Duration of the stop at other locations
             - C: Times the user was at home and work on the same day
             - R: If the user stayed at home the whole day
+
     """
     # aggregate day/night
     durations = (durations
@@ -245,6 +241,51 @@ def compute_durations_and_admins(stops, durations, country, data_date, stop_path
 
 
 def compute_durations_normalized_by_wealth_home(durations_and_admins, admins, labels_wealth, bins_wealth):
+    """Compute the durations of the stops normalized by the wealth of the home location
+
+    Args:
+        durations_and_admins (DF): Dataframe with the following columns:
+            - user_id: User ID
+            - date_trunc: Date of the stop
+            - stop_id: Stop ID
+            - duration: Duration of the stop
+            - admin_id: Administrative unit ID
+            - H: Duration of the stop at home
+            - W: Duration of the stop at work
+            - O: Duration of the stop at other locations
+            - C: Times the user was at home and work on the same day
+            - R: If the user stayed at home the whole day
+            - geom_id_home: Administrative unit ID of home location
+            - geom_id_work: Administrative unit ID of work location
+        admins (df): Dataframe with the following columns:
+            - geom_id: Administrative unit ID
+            - pop: Population of administrative unit
+            - pct_wealth: Percentile of wealth of administrative unit
+        labels_wealth (list): List of labels for wealth bins
+        bins_wealth (list): List of wealth bins
+
+    Returns:
+        Dataframe: Dataframe with the following columns:
+            - user_id: User ID
+            - date_trunc: Date of the stop
+            - stop_id: Stop ID
+            - duration: Duration of the stop
+            - admin_id: Administrative unit ID
+            - H: Duration of the stop at home
+            - W: Duration of the stop at work
+            - O: Duration of the stop at other locations
+            - C: Times the user was at home and work on the same day
+            - R: If the user stayed at home the whole day
+            - geom_id_home: Administrative unit ID of home location
+            - geom_id_work: Administrative unit ID of work location
+            - wealth_label_home: Wealth label of home location
+            - wealth_label_work: Wealth label of work location
+            - pop_home: Population of home location
+            - pop_work: Population of work location
+            - pct_wealth_home: Percentile of wealth of home location
+            - pct_wealth_work: Percentile of wealth of work location
+
+    """
     admins['wealth_label'] = pd.cut(
         admins['pct_wealth'], bins_wealth, labels=labels_wealth)
     admins['geom_id'] = admins['geom_id'].astype(str)
@@ -265,9 +306,26 @@ def compute_durations_normalized_by_wealth_home(durations_and_admins, admins, la
     return out
 
 
-def output(out, column):
-    # compute aggregate measures
-    out = (out
+def output(df, column):
+    """Compute aggregate measures for the given column.
+
+    Args:
+        df (DF): Data frame with the following columns:
+            - date: Date of the stop
+            - wealth_label_home: Wealth label of the home location
+            - weight: Weight of the user based on population
+        column (str): Either 'H', 'W', 'O', 'C', or 'R'
+
+    Returns:
+        df: Data frame with the following columns:
+            - date: Date of the stop
+            - wealth_label_home: Wealth label of the home location
+            - mean: Mean of the given column
+            - sem: Standard error of the mean of the given column
+            - n: Number of observations
+            - n_unique: Number of unique users
+    """
+    out = (df
            .fillna(0, subset=column)
            .groupby('date', 'wealth_label_home')
            .agg((F.sum(col(column) * col('weight')) / F.sum(col('weight'))).alias('mean'),
@@ -279,10 +337,56 @@ def output(out, column):
 
     durations_normalized_by_wealth_home = out.toPandas(
     ).set_index(['wealth_label_home', 'date'])
+
     return durations_normalized_by_wealth_home
 
 
 def compute_durations_normalized_by_wealth_home_wealth_work(durations_and_admins, admins, labels_wealth, bins_wealth):
+    """Duration of stops at home, work, and other locations normalized by wealth of home and work locations.
+
+    Args:
+        durations_and_admins (DF): Dataframe with the following columns:
+            - user_id: User ID
+            - date_trunc: Date of the stop
+            - stop_id: Stop ID
+            - duration: Duration of the stop
+            - admin_id: Administrative unit ID
+            - H: Duration of the stop at home
+            - W: Duration of the stop at work
+            - O: Duration of the stop at other locations
+            - C: Times the user was at home and work on the same day
+            - R: If the user stayed at home the whole day
+            - geom_id_home: Administrative unit ID of home location
+            - geom_id_work: Administrative unit ID of work location
+        admins (DF): Dataframe with the following columns:
+            - geom_id: Administrative unit ID
+            - pop: Population of administrative unit
+            - pct_wealth: Percentile of wealth of administrative unit
+        labels_wealth (list): List of labels for wealth bins
+        bins_wealth (list): List of wealth bins
+
+    Returns:
+        DF: Dataframe with the following columns:
+            - user_id: User ID
+            - date_trunc: Date of the stop
+            - stop_id: Stop ID
+            - duration: Duration of the stop
+            - admin_id: Administrative unit ID
+            - H: Duration of the stop at home
+            - W: Duration of the stop at work
+            - O: Duration of the stop at other locations
+            - C: Times the user was at home and work on the same day
+            - R: If the user stayed at home the whole day
+            - geom_id_home: Administrative unit ID of home location
+            - geom_id_work: Administrative unit ID of work location
+            - wealth_label_home: Wealth label of home location
+            - wealth_label_work: Wealth label of work location
+            - pop_home: Population of home location
+            - pop_work: Population of work location
+            - pct_wealth_home: Percentile of wealth of home location
+            - pct_wealth_work: Percentile of wealth of work location
+
+    """
     admins['wealth_label'] = pd.cut(
         admins['pct_wealth'], bins_wealth, labels=labels_wealth)
     admins['geom_id'] = admins['geom_id'].astype(str)
@@ -307,6 +411,28 @@ def compute_durations_normalized_by_wealth_home_wealth_work(durations_and_admins
 
 
 def output_hw(out, column):
+    """Compute aggregate measures for the given column.
+
+    Args:
+        out (DF): Data frame with the following columns:
+            - date: Date of the stop
+            - wealth_label_home: Wealth label of the home location
+            - wealth_label_work: Wealth label of the work location
+            - weight: Weight of the user based on population
+        column (str): Either 'H', 'W', 'O', 'C', or 'R'
+
+    Returns:
+        DF: Data frame with the following columns:
+            - date: Date of the stop
+            - wealth_label_home: Wealth label of the home location
+            - wealth_label_work: Wealth label of the work location
+            - mean: Mean of the given column
+            - sem: Standard error of the mean of the given column
+            - n: Number of observations
+            - n_unique: Number of unique users
+            - weight: Weight of the user based on population
+            - date: Date of the stop
+    """
     # compute aggregate measures
     out = (out
            .fillna(0, subset=column)
@@ -324,6 +450,29 @@ def output_hw(out, column):
 
 
 def plot_results(axes, row, column, indicator, country, data, labels_wealth, start_date, end_date, ma=28):
+    """Plot results.
+
+    Args:
+        axes (axes): axes to plot on
+        row (row): row to plot on
+        column (column): column to plot on
+        indicator (str): Either 'hw' or 'hw2'
+        country (str): Country name
+        data (DF): Data frame with the following columns:
+        - date: Date of the stop
+        - wealth_label_home: Wealth label of the home location
+        - wealth_label_work: Wealth label of the work location
+        - mean: Mean of the given column
+        - sem: Standard error of the mean of the given column
+        - n: Number of observations
+        - n_unique: Number of unique users
+        - weight: Weight of the user based on population
+        - date: Date of the stop
+        labels_wealth (list): List of labels for wealth bins
+        start_date (str): Start date
+        end_date (str): End date
+        ma (int, optional): Size of the moving average. Defaults to 28.
+    """
     data = data.sort_index(level='date')
     for k, wealth_label_home in enumerate(labels_wealth):
         if 'hw' in indicator:
@@ -362,6 +511,18 @@ def plot_results(axes, row, column, indicator, country, data, labels_wealth, sta
 
 
 def read_admin(country):
+    """Read admin file.
+
+    Args:
+        country (str): Country name
+
+    Returns:
+        DF: Data frame with the following columns:
+            - geom_id: ID of the admin unit
+            - metro_area_name: Name of the metro area
+            - metro_area_id: ID of the metro area
+            - urban/rural: Urban or rural
+    """
     admin_path = f'/mnt/Geospatial/admin/{country}/admin.csv'
     admin = spark.read.option('header', 'true').csv(admin_path)
     admin = (admin
@@ -372,6 +533,35 @@ def read_admin(country):
 
 def compute_rural_migration_stats_city(country, bins_wealth, labels_wealth, hw, ww, wa, mph, mpw, activity_level,
                                        c_dates, admin_path, stop_path):
+    """Migration stats for a given city.
+
+    Args:
+        country (str): Country name
+        bins_wealth (list): List of bins for wealth
+        labels_wealth (list): List of labels for wealth bins
+        hw (float): Weight of home
+        ww (float): Weight of work
+        wa (float): Weight of activity
+        mph (float): Minimum percentage of home stops
+        mpw (float): Minimum percentage of work stops
+        activity_level (str): Activity level
+        c_dates (list): List of dates
+        admin_path (str): Path to admin file
+        stop_path (str): Path to stop file
+
+    Returns:
+        DF: Data frame with the following columns:
+            - date: Date of the stop
+            - wealth_label_home: Wealth label of the home location
+            - wealth_label_work: Wealth label of the work location
+            - mean: Mean of the given column
+            - sem: Standard error of the mean of the given column
+            - n: Number of observations
+            - n_unique: Number of unique users
+            - weight: Weight of the user based on population
+            - date: Date of the stop
+
+    """
     admins, admins_by_metro_area, pops = process_admin(country, admin_path)
     admins['geom_id'] = admins['geom_id'].astype(str)
 
