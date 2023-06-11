@@ -4,6 +4,6 @@ pyarrow
 infomap
 infostop
 pyspark
-sklearn
+scikit-learn
 seaborn
 datetime
