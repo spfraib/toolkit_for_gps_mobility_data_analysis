@@ -531,110 +531,127 @@ def read_admin(country):
     return admin
 
 
-def compute_rural_migration_stats_city(country, bins_wealth, labels_wealth, hw, ww, wa, mph, mpw, activity_level,
-                                       c_dates, admin_path, stop_path):
-    """Migration stats for a given city.
+def get_most_frequent_geom_id(spark, stops, active_users, weights, admin_path):
+    """
+    Get the most frequent daily geom id for each active user.
 
     Args:
-        country (str): Country name
-        bins_wealth (list): List of bins for wealth
-        labels_wealth (list): List of labels for wealth bins
-        hw (float): Weight of home
-        ww (float): Weight of work
-        wa (float): Weight of activity
-        mph (float): Minimum percentage of home stops
-        mpw (float): Minimum percentage of work stops
-        activity_level (str): Activity level
-        c_dates (list): List of dates
+        spark (SparkSession): Spark session
+        stops (DataFrame): Data frame with stop data
+        active_users (DataFrame): Data frame with active users
+        weights (dict): Dictionary of weights for different location types
         admin_path (str): Path to admin file
-        stop_path (str): Path to stop file
 
     Returns:
-        DF: Data frame with the following columns:
-            - date: Date of the stop
-            - wealth_label_home: Wealth label of the home location
-            - wealth_label_work: Wealth label of the work location
-            - mean: Mean of the given column
-            - sem: Standard error of the mean of the given column
-            - n: Number of observations
-            - n_unique: Number of unique users
-            - weight: Weight of the user based on population
-            - date: Date of the stop
-
+        DataFrame: Data frame with the following columns:
+            - user_id: User ID
+            - geom_id: Geom ID with the most frequent daily stops
+            - wealth_label: Wealth label of the geom ID
+            - country: Country name
     """
-    admins, admins_by_metro_area, pops = process_admin(country, admin_path)
-    admins['geom_id'] = admins['geom_id'].astype(str)
-
-    admins_by_metro_area['wealth_label'] = pd.cut(admins_by_metro_area['pct_wealth'], bins_wealth, labels=labels_wealth)
-    admins_by_metro_area['geom_id'] = admins_by_metro_area['geom_id'].astype(str)
-    admins_by_metro_area['wealth_label'] = admins_by_metro_area['wealth_label'].astype(str)
-
-    admins_by_metro_area = admins_by_metro_area.loc[
-        admins_by_metro_area.metro_area_name == pops.reset_index().metro_area_name[0]]
-    admins = spark.createDataFrame(admins_by_metro_area).select('geom_id', 'wealth_label')
-
-    admin_rural = read_admin(country)
-
-    # get list of active users
-    fname_nf = f'durations_window_hw{hw}_ww{ww}_wa{wa}_mph{mph}_mpw{mpw}'
-    durations_path_nf = f'{stop_path}{country}/accuracy100_maxtimestop3600_staytime300_radius50_dbscanradius50/date{c_dates[country]}/' + fname_nf
-    durations = spark.read.parquet(durations_path_nf)
-    active_users = get_active_list(durations, country, activity_level)
-
-    # read stops, filter actives, get most frequented daily geom id, and get rural/urban info
-    personal_nf = f"personal_stop_location_hw{hw}_ww{ww}_wa{wa}_mph{mph}_mpw{mpw}"
-    stops = spark.read.parquet(
-        f"{stop_path}{country}/accuracy100_maxtimestop3600_staytime300_radius50_dbscanradius50/date{c_dates[country]}/" + personal_nf)
-
+    # Read admin data
     admins_by_country, admins_by_metro_area, pop_metro_areas = process_admin(country, admin_path)
-    metro = (admins_by_metro_area
-             .loc[admins_by_metro_area.metro_area_name == pop_metro_areas
-             .reset_index()
-             .head(1)
-             .metro_area_name
-             .to_list()[0]]["geom_id"]
-             .to_list())
+    metro = admins_by_metro_area.loc[admins_by_metro_area.metro_area_name == pop_metro_areas.reset_index()
+                                     .head(1).metro_area_name.to_list()[0]]['geom_id'].to_list()
 
-    users_metro = stops.where(col('location_type') == 'H').filter(
-        F.col("geom_id").isin(metro)).select('user_id').distinct()
-    stops = stops.join(users_metro, on='user_id', how='inner').join(
-        active_users, on='user_id', how='inner')
+    # Filter stops by active users and metro area
+    users_metro = stops.where(col('location_type') == 'H').filter(F.col("geom_id").isin(metro)).select('user_id').distinct()
+    stops = stops.join(users_metro, on='user_id', how='inner').join(active_users, on='user_id', how='inner')
 
+    # Get most frequent daily geom id for each user
     w = Window.partitionBy('user_id')
     user_geom = (stops
                  .where(col('location_type') == 'H')
                  .filter(F.col("geom_id").isin(metro))
-                 #                .where(col('date_trunc') <= '2020-03-15')
                  .groupby('user_id', 'geom_id')
                  .agg(F.countDistinct('date_trunc').alias('n_days'))
                  .withColumn('max_days', F.max('n_days').over(w))
                  .where(col('n_days') == col('max_days'))
                  .groupby('user_id')
                  .agg(F.first('geom_id').alias('geom_id'))
-                 .join(admins, on='geom_id')
+                 .join(get_admins_by_metro_area(spark, country, admin_path), on='geom_id')
                  .drop('geom_id'))
+    user_geom = user_geom.toPandas()
+    user_geom['country'] = country
+    return user_geom
 
-    usrs = (user_geom
-            .join(active_users, on='user_id', how='inner')
-            .toPandas())
-    usrs["country"] = country
 
-    w = Window.partitionBy('user_id', 'date_trunc')
+def get_admins_by_metro_area(spark, country, admin_path):
+    """
+    Get admins by metro area.
+
+    Args:
+        spark (SparkSession): Spark session
+        country (str): Country name
+        admin_path (str): Path to admin file
+
+    Returns:
+        DataFrame: Data frame with admins by metro area
+    """
+    admins, admins_by_metro_area, pops = process_admin(country, admin_path)
+    admins_by_metro_area = admins_by_metro_area.astype({'geom_id': str, 'wealth_label': str})
+    return spark.createDataFrame(admins_by_metro_area)
+
+
+def get_user_info(user_geom, active_users, country):
+    """
+    Get user information for the active users in the given city.
+
+    Args:
+        user_geom (DataFrame): Data frame with user information
+        active_users (DataFrame): Data frame with active users
+        country (str): Country name
+
+    Returns:
+        DataFrame: Data frame with user information for the active users in the given city
+    """
+    user_info = user_geom.merge(active_users.toPandas(), on='user_id')
+    user_info['country'] = country
+    return user_info
+
+def get_rural_urban_info(country, stops, admin_path):
+    """
+    Get rural/urban information for each stop.
+
+    Args:
+        country (str): Country name
+        stops (DataFrame): Data frame with stop data
+        admin_path (str): Path to admin file
+
+    Returns:
+        DataFrame: Data frame with rural/urban information for each stop
+    """
+    admin_rural = read_admin(country)
+
+    # Get rural/urban info for each stop
+    stops = stops.join(admin_rural, on='geom_id', how='inner')
+    stops = stops.drop('urban/rural')
+    stops = stops.withColumnRenamed('urban/rural_new', 'urban/rural')
+    return stops
+
+def identify_migrations(stops):
+    """
+    Identify the direction of each migration.
+
+    Args:
+        stops (DataFrame): Data frame with stop data
+
+    Returns:
+        DataFrame: Data frame with the following columns:
+            - user_id: User ID
+            - date: Date of the stop
+            - geom_id: Geom ID of the stop
+            - prev_geom_id: Geom ID of the previous stop
+            - urban/rural: Rural/urban status of the stop
+            - prev_urban/rural: Rural/urban status of the previous stop
+            - change: Change in rural/urban status
+            - gap: Time gap between the stop and the previous stop
+            - rand_gap: Randomized time gap
+            - new_date: Date with randomized time gap
+    """
+    w = Window.partitionBy('user_id').orderBy('date_trunc')
     h_stops = (stops
                .where(col('location_type') == 'H')
-               .join(active_users, on='user_id', how='inner')
-               .groupby('user_id', 'date_trunc', 'geom_id')
-               .agg(F.sum('duration').alias('duration'))
-               .withColumn('max_duration', F.max('duration').over(w))
-               .where(col('duration') == col('max_duration'))
-               .groupby('user_id', 'date_trunc')
-               .agg(F.first('geom_id').alias('geom_id'))
-               .join(admin_rural, on='geom_id', how='inner')
-               .join(user_geom, on='user_id', how='inner'))
-
-    # look-up previous geom id to identify migrations with direction
-    w = Window.partitionBy('user_id').orderBy('date_trunc')
-    h_stops = (h_stops
                .withColumn('prev_geom_id', F.lag('geom_id', offset=1).over(w))
                .withColumn('prev_urban/rural', F.lag('urban/rural', offset=1).over(w))
                .withColumn('prev_date', F.lag('date_trunc', offset=1).over(w))
@@ -646,9 +663,29 @@ def compute_rural_migration_stats_city(country, bins_wealth, labels_wealth, hw, 
                .withColumn('rand_gap', (-1 * F.rand() * (col('gap') - 1)).astype(IntegerType()))
                .withColumn('new_date', F.expr("date_add(date_trunc, rand_gap)"))
                .withColumn('date_trunc', col('new_date')))
-    # .withColumn('date_trunc', F.when(col('gap') > 30, col('new_date')).otherwise(col('date_trunc'))))
+    return h_stops
 
-    # aggregate by day and change and return as pandas df
+
+def calculate_stats(country, h_stops, user_info):
+    """
+    Calculate migration statistics.
+
+    Args:
+        country (str): Country name
+        h_stops (DataFrame): Data frame with stop data
+        user_info (DataFrame): Data frame with user information
+
+    Returns:
+        DataFrame: Data frame with migration statistics
+    """
+    admins_by_metro_area = get_admins_by_metro_area(spark, country, admin_path)
+    admins_by_metro_area = admins_by_metro_area.astype({'geom_id': str, 'wealth_label': str})
+
+    # Join with user info and get wealth label for each stop
+    h_stops = h_stops.join(user_info[['user_id', 'wealth_label']], on='user_id')
+    h_stops = h_stops.join(admins_by_metro_area[['geom_id', 'wealth_label']], on='geom_id')
+
+    # Aggregate by day, change, and wealth label
     out = (h_stops
            .groupby('date_trunc', 'wealth_label', 'change')
            .agg(F.countDistinct('user_id').alias('n_users'))
@@ -656,86 +693,110 @@ def compute_rural_migration_stats_city(country, bins_wealth, labels_wealth, hw, 
            .toPandas())
     out['date'] = pd.to_datetime(out['date'])
     out['country'] = country
-    return out, usrs
+    return out
 
 
-def compute_rural_migration_stats(country, hw, ww, wa, mph, mpw, c_dates, stop_path):
+def compute_rural_migration_stats_city(spark, country, bins_wealth, labels_wealth, weights, thresholds, activity_level,
+                                       c_dates, admin_path, stop_path_suffix):
+    """
+    Compute migration stats for a given city.
+
+    Args:
+        spark (SparkSession): Spark session
+        country (str): Country name
+        bins_wealth (list): List of bins for wealth
+        labels_wealth (list): List of labels for wealth bins
+        weights (dict): Dictionary of weights for different location types
+        thresholds (dict): Dictionary of minimum percentage thresholds for home and work stops
+        activity_level (str): Activity level
+        c_dates (list): List of dates
+        admin_path (str): Path to admin file
+        stop_path_suffix (str): Suffix for stop file path
+
+    Returns:
+        Tuple: A tuple of two pandas data frames:
+            1. Data frame with the following columns:
+                - date: Date of the stop
+                - wealth_label_home: Wealth label of the home location
+                - wealth_label_work: Wealth label of the work location
+                - change: Type of change (e.g., rural to urban)
+                - n_users: Number of users
+                - country: Country name
+            2. Data frame with user information for the active users in the given city
+    """
+    # Process admin data
+    admins, admins_by_metro_area, pops = process_admin(country, admin_path)
+    admins_by_metro_area = admins_by_metro_area.loc[
+        admins_by_metro_area.metro_area_name == pops.reset_index().metro_area_name[0]]
+    admins_by_metro_area['wealth_label'] = pd.cut(admins_by_metro_area['pct_wealth'], bins_wealth,
+                                                  labels=labels_wealth)
+    admins_by_metro_area = admins_by_metro_area.astype({'geom_id': str, 'wealth_label': str})
+    admins = spark.createDataFrame(admins_by_metro_area).select('geom_id', 'wealth_label')
+
+    # Read stop data
+    durations_path = f"{stop_path_prefix}/{country}/date{c_dates[country]}/{stop_path_suffix}/" + \
+                     f"durations_window_hw{weights['home']}_ww{weights['work']}_wa{weights['activity']}_" + \
+                     f"mph{thresholds['home']}_mpw{thresholds['work']}"
+    durations = spark.read.parquet(durations_path)
+    active_users = get_active_list(durations, country, activity_level)
+
+    personal_path = f"{stop_path_prefix}/{country}/date{c_dates[country]}/{stop_path_suffix}/" + \
+                    f"personal_stop_location_hw{weights['home']}_ww{weights['work']}_wa{weights['activity']}_" + \
+                    f"mph{thresholds['home']}_mpw{thresholds['work']}"
+    stops = spark.read.parquet(personal_path)
+
+    # Filter active users and most frequent daily geom id
+    user_geom = get_most_frequent_geom_id(spark, stops, active_users, weights, admin_path)
+    user_info = get_user_info(user_geom, active_users, country)
+
+    # Get rural/urban info for each stop
+    stops = get_rural_urban_info(stops, admin_path)
+
+    # Identify migrations and calculate statistics
+    migrations = identify_migrations(stops)
+    stats = calculate_stats(migrations, admins, user_geom, country)
+
+    return stats, user_info
+
+def compute_rural_migration_stats(country, weights, c_dates, stop_path, activity_level=0.2):
     """Compute rural migration stats.
 
     Args:
         country (str): Country name.
-        hw (int): Home window.
-        ww (int): Work window.
-        wa (int): Work activity.
-        mph (float): Minimum point home duration.
-        mpw (float): Minimum point work duration.
+        weights (dict): Dictionary containing weights for home, work, and activity.
         c_dates (list): List of dates.
         stop_path (str): Path to stops.
+        activity_level (float): Activity level. Default is 0.2.
 
     Returns:
-        DF: Dataframe with rural migration stats.
+        DataFrame: Dataframe with rural migration stats.
 
     """
-    # read admin
-    admin = read_admin(country)
+    admin, admins_by_metro_area, pops = process_admin(country, admin_path)
+
+    admin_rural = admin[admin['urban/rural'] == 'rural'].reset_index()
 
     # get list of active users
-    fname_nf = f'durations_window_hw{hw}_ww{ww}_wa{wa}_mph{mph}_mpw{mpw}'
-    durations_path_nf = f'{stop_path}{country}/accuracy100_maxtimestop3600_staytime300_radius50_dbscanradius50/date{c_dates[country]}/' + fname_nf
-    durations = spark.read.parquet(durations_path_nf)
+    durations = read_durations(country, weights['hw'], weights['ww'], weights['wa'], weights['mph'], weights['mpw'], c_dates, stop_path)
     active_users = get_active_list(durations, country, activity_level)
-    admins_by_country, admins_by_metro_area, pop_metro_areas = process_admin(country, admin_path)
-    metro = (admins_by_metro_area
-             .loc[admins_by_metro_area.metro_area_name == pop_metro_areas
-             .reset_index()
-             .head(1)
-             .metro_area_name
-             .to_list()[0]]["geom_id"]
-             .to_list())
+
+    metro = get_most_frequent_daily_geom_id(admins_by_metro_area, pops)
 
     # read stops, filter actives, get most frequented daily geom id, and get rural/urban info
-    personal_nf = f"personal_stop_location_hw{hw}_ww{ww}_wa{wa}_mph{mph}_mpw{mpw}"
-    stops = spark.read.parquet(
-        f"{stop_path}{country}/accuracy100_maxtimestop3600_staytime300_radius50_dbscanradius50/date{c_dates[country]}/" + personal_nf)
-    users_metro = stops.where(col('location_type') == 'H').filter(
-        F.col("geom_id").isin(metro)).select('user_id').distinct()
-    stops = stops.join(users_metro, on='user_id', how='inner').join(
-        active_users, on='user_id', how='inner')
+    personal_stops = read_personal_stops(country, weights['hw'], weights['ww'], weights['wa'], weights['mph'], weights['mpw'], c_dates, stop_path)
+    users_metro = get_users_metro(personal_stops, metro)
+    stops = filter_stops(personal_stops, active_users, users_metro)
 
-    w = Window.partitionBy('user_id', 'date_trunc')
-    h_stops = (stops
-               .where(col('location_type') == 'H')
-               .join(active_users, on='user_id', how='inner')
-               .groupby('user_id', 'date_trunc', 'geom_id')
-               .agg(F.sum('duration').alias('duration'))
-               .withColumn('max_duration', F.max('duration').over(w))
-               .where(col('duration') == col('max_duration'))
-               .groupby('user_id', 'date_trunc')
-               .agg(F.first('geom_id').alias('geom_id'))
-               .join(admin, on='geom_id', how='inner'))
+    user_geom = get_most_frequent_geom_id(stops, metro, admin)
 
-    # look-up previous geom id to identify migrations with direction
-    w = Window.partitionBy('user_id').orderBy('date_trunc')
-    h_stops = (h_stops
-               .withColumn('prev_geom_id', F.lag('geom_id', offset=1).over(w))
-               .withColumn('prev_urban/rural', F.lag('urban/rural', offset=1).over(w))
-               .withColumn('prev_date', F.lag('date_trunc', offset=1).over(w))
-               .where(col('prev_geom_id').isNotNull())
-               .withColumn('change', F.when(col('urban/rural') == col('prev_urban/rural'), 'no change')
-                           .otherwise(F.when(col('urban/rural') == 'urban', 'rural to urban')
-                                      .otherwise(F.when(col('urban/rural') == 'rural', 'urban to rural'))))
-               .withColumn('gap', F.datediff(col('date_trunc'), col('prev_date')))
-               .withColumn('rand_gap', (-1 * F.rand() * (col('gap') - 1)).astype(IntegerType()))
-               .withColumn('new_date', F.expr("date_add(date_trunc, rand_gap)"))
-               .withColumn('date_trunc', F.when(col('gap') > 30, col('new_date')).otherwise(col('date_trunc'))))
+    usrs = get_users_info(user_geom, active_users, country)
 
-    # aggregate by day and change and return as pandas df
-    out = (h_stops
-           .groupby('date_trunc', 'change')
-           .agg(F.countDistinct('user_id').alias('n_users'))
-           .withColumnRenamed('date_trunc', 'date')
-           .toPandas())
-    out['date'] = pd.to_datetime(out['date'])
+    h_stops = get_home_stops(stops, active_users, user_geom, admin_rural)
+
+    h_stops = identify_migrations(h_stops)
+
+    out = calculate_stats(h_stops)
+
     return out
 
 

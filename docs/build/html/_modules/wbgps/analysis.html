@@ -603,110 +603,127 @@
     <span class="k">return</span> <span class="n">admin</span></div>
 
 
-<div class="viewcode-block" id="compute_rural_migration_stats_city"><a class="viewcode-back" href="../../wbgps.html#wbgps.analysis.compute_rural_migration_stats_city">[docs]</a><span class="k">def</span> <span class="nf">compute_rural_migration_stats_city</span><span class="p">(</span><span class="n">country</span><span class="p">,</span> <span class="n">bins_wealth</span><span class="p">,</span> <span class="n">labels_wealth</span><span class="p">,</span> <span class="n">hw</span><span class="p">,</span> <span class="n">ww</span><span class="p">,</span> <span class="n">wa</span><span class="p">,</span> <span class="n">mph</span><span class="p">,</span> <span class="n">mpw</span><span class="p">,</span> <span class="n">activity_level</span><span class="p">,</span>
-                                       <span class="n">c_dates</span><span class="p">,</span> <span class="n">admin_path</span><span class="p">,</span> <span class="n">stop_path</span><span class="p">):</span>
-    <span class="sd">&quot;&quot;&quot;Migration stats for a given city.</span>
+<div class="viewcode-block" id="get_most_frequent_geom_id"><a class="viewcode-back" href="../../wbgps.html#wbgps.analysis.get_most_frequent_geom_id">[docs]</a><span class="k">def</span> <span class="nf">get_most_frequent_geom_id</span><span class="p">(</span><span class="n">spark</span><span class="p">,</span> <span class="n">stops</span><span class="p">,</span> <span class="n">active_users</span><span class="p">,</span> <span class="n">weights</span><span class="p">,</span> <span class="n">admin_path</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Get the most frequent daily geom id for each active user.</span>
 
 <span class="sd">    Args:</span>
-<span class="sd">        country (str): Country name</span>
-<span class="sd">        bins_wealth (list): List of bins for wealth</span>
-<span class="sd">        labels_wealth (list): List of labels for wealth bins</span>
-<span class="sd">        hw (float): Weight of home</span>
-<span class="sd">        ww (float): Weight of work</span>
-<span class="sd">        wa (float): Weight of activity</span>
-<span class="sd">        mph (float): Minimum percentage of home stops</span>
-<span class="sd">        mpw (float): Minimum percentage of work stops</span>
-<span class="sd">        activity_level (str): Activity level</span>
-<span class="sd">        c_dates (list): List of dates</span>
+<span class="sd">        spark (SparkSession): Spark session</span>
+<span class="sd">        stops (DataFrame): Data frame with stop data</span>
+<span class="sd">        active_users (DataFrame): Data frame with active users</span>
+<span class="sd">        weights (dict): Dictionary of weights for different location types</span>
 <span class="sd">        admin_path (str): Path to admin file</span>
-<span class="sd">        stop_path (str): Path to stop file</span>
 
 <span class="sd">    Returns:</span>
-<span class="sd">        DF: Data frame with the following columns:</span>
-<span class="sd">            - date: Date of the stop</span>
-<span class="sd">            - wealth_label_home: Wealth label of the home location</span>
-<span class="sd">            - wealth_label_work: Wealth label of the work location</span>
-<span class="sd">            - mean: Mean of the given column</span>
-<span class="sd">            - sem: Standard error of the mean of the given column</span>
-<span class="sd">            - n: Number of observations</span>
-<span class="sd">            - n_unique: Number of unique users</span>
-<span class="sd">            - weight: Weight of the user based on population</span>
-<span class="sd">            - date: Date of the stop</span>
-
+<span class="sd">        DataFrame: Data frame with the following columns:</span>
+<span class="sd">            - user_id: User ID</span>
+<span class="sd">            - geom_id: Geom ID with the most frequent daily stops</span>
+<span class="sd">            - wealth_label: Wealth label of the geom ID</span>
+<span class="sd">            - country: Country name</span>
 <span class="sd">    &quot;&quot;&quot;</span>
-    <span class="n">admins</span><span class="p">,</span> <span class="n">admins_by_metro_area</span><span class="p">,</span> <span class="n">pops</span> <span class="o">=</span> <span class="n">process_admin</span><span class="p">(</span><span class="n">country</span><span class="p">,</span> <span class="n">admin_path</span><span class="p">)</span>
-    <span class="n">admins</span><span class="p">[</span><span class="s1">&#39;geom_id&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">admins</span><span class="p">[</span><span class="s1">&#39;geom_id&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">astype</span><span class="p">(</span><span class="nb">str</span><span class="p">)</span>
-
-    <span class="n">admins_by_metro_area</span><span class="p">[</span><span class="s1">&#39;wealth_label&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">pd</span><span class="o">.</span><span class="n">cut</span><span class="p">(</span><span class="n">admins_by_metro_area</span><span class="p">[</span><span class="s1">&#39;pct_wealth&#39;</span><span class="p">],</span> <span class="n">bins_wealth</span><span class="p">,</span> <span class="n">labels</span><span class="o">=</span><span class="n">labels_wealth</span><span class="p">)</span>
-    <span class="n">admins_by_metro_area</span><span class="p">[</span><span class="s1">&#39;geom_id&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">admins_by_metro_area</span><span class="p">[</span><span class="s1">&#39;geom_id&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">astype</span><span class="p">(</span><span class="nb">str</span><span class="p">)</span>
-    <span class="n">admins_by_metro_area</span><span class="p">[</span><span class="s1">&#39;wealth_label&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">admins_by_metro_area</span><span class="p">[</span><span class="s1">&#39;wealth_label&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">astype</span><span class="p">(</span><span class="nb">str</span><span class="p">)</span>
-
-    <span class="n">admins_by_metro_area</span> <span class="o">=</span> <span class="n">admins_by_metro_area</span><span class="o">.</span><span class="n">loc</span><span class="p">[</span>
-        <span class="n">admins_by_metro_area</span><span class="o">.</span><span class="n">metro_area_name</span> <span class="o">==</span> <span class="n">pops</span><span class="o">.</span><span class="n">reset_index</span><span class="p">()</span><span class="o">.</span><span class="n">metro_area_name</span><span class="p">[</span><span class="mi">0</span><span class="p">]]</span>
-    <span class="n">admins</span> <span class="o">=</span> <span class="n">spark</span><span class="o">.</span><span class="n">createDataFrame</span><span class="p">(</span><span class="n">admins_by_metro_area</span><span class="p">)</span><span class="o">.</span><span class="n">select</span><span class="p">(</span><span class="s1">&#39;geom_id&#39;</span><span class="p">,</span> <span class="s1">&#39;wealth_label&#39;</span><span class="p">)</span>
-
-    <span class="n">admin_rural</span> <span class="o">=</span> <span class="n">read_admin</span><span class="p">(</span><span class="n">country</span><span class="p">)</span>
-
-    <span class="c1"># get list of active users</span>
-    <span class="n">fname_nf</span> <span class="o">=</span> <span class="sa">f</span><span class="s1">&#39;durations_window_hw</span><span class="si">{</span><span class="n">hw</span><span class="si">}</span><span class="s1">_ww</span><span class="si">{</span><span class="n">ww</span><span class="si">}</span><span class="s1">_wa</span><span class="si">{</span><span class="n">wa</span><span class="si">}</span><span class="s1">_mph</span><span class="si">{</span><span class="n">mph</span><span class="si">}</span><span class="s1">_mpw</span><span class="si">{</span><span class="n">mpw</span><span class="si">}</span><span class="s1">&#39;</span>
-    <span class="n">durations_path_nf</span> <span class="o">=</span> <span class="sa">f</span><span class="s1">&#39;</span><span class="si">{</span><span class="n">stop_path</span><span class="si">}{</span><span class="n">country</span><span class="si">}</span><span class="s1">/accuracy100_maxtimestop3600_staytime300_radius50_dbscanradius50/date</span><span class="si">{</span><span class="n">c_dates</span><span class="p">[</span><span class="n">country</span><span class="p">]</span><span class="si">}</span><span class="s1">/&#39;</span> <span class="o">+</span> <span class="n">fname_nf</span>
-    <span class="n">durations</span> <span class="o">=</span> <span class="n">spark</span><span class="o">.</span><span class="n">read</span><span class="o">.</span><span class="n">parquet</span><span class="p">(</span><span class="n">durations_path_nf</span><span class="p">)</span>
-    <span class="n">active_users</span> <span class="o">=</span> <span class="n">get_active_list</span><span class="p">(</span><span class="n">durations</span><span class="p">,</span> <span class="n">country</span><span class="p">,</span> <span class="n">activity_level</span><span class="p">)</span>
-
-    <span class="c1"># read stops, filter actives, get most frequented daily geom id, and get rural/urban info</span>
-    <span class="n">personal_nf</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">&quot;personal_stop_location_hw</span><span class="si">{</span><span class="n">hw</span><span class="si">}</span><span class="s2">_ww</span><span class="si">{</span><span class="n">ww</span><span class="si">}</span><span class="s2">_wa</span><span class="si">{</span><span class="n">wa</span><span class="si">}</span><span class="s2">_mph</span><span class="si">{</span><span class="n">mph</span><span class="si">}</span><span class="s2">_mpw</span><span class="si">{</span><span class="n">mpw</span><span class="si">}</span><span class="s2">&quot;</span>
-    <span class="n">stops</span> <span class="o">=</span> <span class="n">spark</span><span class="o">.</span><span class="n">read</span><span class="o">.</span><span class="n">parquet</span><span class="p">(</span>
-        <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">stop_path</span><span class="si">}{</span><span class="n">country</span><span class="si">}</span><span class="s2">/accuracy100_maxtimestop3600_staytime300_radius50_dbscanradius50/date</span><span class="si">{</span><span class="n">c_dates</span><span class="p">[</span><span class="n">country</span><span class="p">]</span><span class="si">}</span><span class="s2">/&quot;</span> <span class="o">+</span> <span class="n">personal_nf</span><span class="p">)</span>
-
+    <span class="c1"># Read admin data</span>
     <span class="n">admins_by_country</span><span class="p">,</span> <span class="n">admins_by_metro_area</span><span class="p">,</span> <span class="n">pop_metro_areas</span> <span class="o">=</span> <span class="n">process_admin</span><span class="p">(</span><span class="n">country</span><span class="p">,</span> <span class="n">admin_path</span><span class="p">)</span>
-    <span class="n">metro</span> <span class="o">=</span> <span class="p">(</span><span class="n">admins_by_metro_area</span>
-             <span class="o">.</span><span class="n">loc</span><span class="p">[</span><span class="n">admins_by_metro_area</span><span class="o">.</span><span class="n">metro_area_name</span> <span class="o">==</span> <span class="n">pop_metro_areas</span>
-             <span class="o">.</span><span class="n">reset_index</span><span class="p">()</span>
-             <span class="o">.</span><span class="n">head</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span>
-             <span class="o">.</span><span class="n">metro_area_name</span>
-             <span class="o">.</span><span class="n">to_list</span><span class="p">()[</span><span class="mi">0</span><span class="p">]][</span><span class="s2">&quot;geom_id&quot;</span><span class="p">]</span>
-             <span class="o">.</span><span class="n">to_list</span><span class="p">())</span>
+    <span class="n">metro</span> <span class="o">=</span> <span class="n">admins_by_metro_area</span><span class="o">.</span><span class="n">loc</span><span class="p">[</span><span class="n">admins_by_metro_area</span><span class="o">.</span><span class="n">metro_area_name</span> <span class="o">==</span> <span class="n">pop_metro_areas</span><span class="o">.</span><span class="n">reset_index</span><span class="p">()</span>
+                                     <span class="o">.</span><span class="n">head</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span><span class="o">.</span><span class="n">metro_area_name</span><span class="o">.</span><span class="n">to_list</span><span class="p">()[</span><span class="mi">0</span><span class="p">]][</span><span class="s1">&#39;geom_id&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">to_list</span><span class="p">()</span>
 
-    <span class="n">users_metro</span> <span class="o">=</span> <span class="n">stops</span><span class="o">.</span><span class="n">where</span><span class="p">(</span><span class="n">col</span><span class="p">(</span><span class="s1">&#39;location_type&#39;</span><span class="p">)</span> <span class="o">==</span> <span class="s1">&#39;H&#39;</span><span class="p">)</span><span class="o">.</span><span class="n">filter</span><span class="p">(</span>
-        <span class="n">F</span><span class="o">.</span><span class="n">col</span><span class="p">(</span><span class="s2">&quot;geom_id&quot;</span><span class="p">)</span><span class="o">.</span><span class="n">isin</span><span class="p">(</span><span class="n">metro</span><span class="p">))</span><span class="o">.</span><span class="n">select</span><span class="p">(</span><span class="s1">&#39;user_id&#39;</span><span class="p">)</span><span class="o">.</span><span class="n">distinct</span><span class="p">()</span>
-    <span class="n">stops</span> <span class="o">=</span> <span class="n">stops</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">users_metro</span><span class="p">,</span> <span class="n">on</span><span class="o">=</span><span class="s1">&#39;user_id&#39;</span><span class="p">,</span> <span class="n">how</span><span class="o">=</span><span class="s1">&#39;inner&#39;</span><span class="p">)</span><span class="o">.</span><span class="n">join</span><span class="p">(</span>
-        <span class="n">active_users</span><span class="p">,</span> <span class="n">on</span><span class="o">=</span><span class="s1">&#39;user_id&#39;</span><span class="p">,</span> <span class="n">how</span><span class="o">=</span><span class="s1">&#39;inner&#39;</span><span class="p">)</span>
+    <span class="c1"># Filter stops by active users and metro area</span>
+    <span class="n">users_metro</span> <span class="o">=</span> <span class="n">stops</span><span class="o">.</span><span class="n">where</span><span class="p">(</span><span class="n">col</span><span class="p">(</span><span class="s1">&#39;location_type&#39;</span><span class="p">)</span> <span class="o">==</span> <span class="s1">&#39;H&#39;</span><span class="p">)</span><span class="o">.</span><span class="n">filter</span><span class="p">(</span><span class="n">F</span><span class="o">.</span><span class="n">col</span><span class="p">(</span><span class="s2">&quot;geom_id&quot;</span><span class="p">)</span><span class="o">.</span><span class="n">isin</span><span class="p">(</span><span class="n">metro</span><span class="p">))</span><span class="o">.</span><span class="n">select</span><span class="p">(</span><span class="s1">&#39;user_id&#39;</span><span class="p">)</span><span class="o">.</span><span class="n">distinct</span><span class="p">()</span>
+    <span class="n">stops</span> <span class="o">=</span> <span class="n">stops</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">users_metro</span><span class="p">,</span> <span class="n">on</span><span class="o">=</span><span class="s1">&#39;user_id&#39;</span><span class="p">,</span> <span class="n">how</span><span class="o">=</span><span class="s1">&#39;inner&#39;</span><span class="p">)</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">active_users</span><span class="p">,</span> <span class="n">on</span><span class="o">=</span><span class="s1">&#39;user_id&#39;</span><span class="p">,</span> <span class="n">how</span><span class="o">=</span><span class="s1">&#39;inner&#39;</span><span class="p">)</span>
 
+    <span class="c1"># Get most frequent daily geom id for each user</span>
     <span class="n">w</span> <span class="o">=</span> <span class="n">Window</span><span class="o">.</span><span class="n">partitionBy</span><span class="p">(</span><span class="s1">&#39;user_id&#39;</span><span class="p">)</span>
     <span class="n">user_geom</span> <span class="o">=</span> <span class="p">(</span><span class="n">stops</span>
                  <span class="o">.</span><span class="n">where</span><span class="p">(</span><span class="n">col</span><span class="p">(</span><span class="s1">&#39;location_type&#39;</span><span class="p">)</span> <span class="o">==</span> <span class="s1">&#39;H&#39;</span><span class="p">)</span>
                  <span class="o">.</span><span class="n">filter</span><span class="p">(</span><span class="n">F</span><span class="o">.</span><span class="n">col</span><span class="p">(</span><span class="s2">&quot;geom_id&quot;</span><span class="p">)</span><span class="o">.</span><span class="n">isin</span><span class="p">(</span><span class="n">metro</span><span class="p">))</span>
-                 <span class="c1">#                .where(col(&#39;date_trunc&#39;) &lt;= &#39;2020-03-15&#39;)</span>
                  <span class="o">.</span><span class="n">groupby</span><span class="p">(</span><span class="s1">&#39;user_id&#39;</span><span class="p">,</span> <span class="s1">&#39;geom_id&#39;</span><span class="p">)</span>
                  <span class="o">.</span><span class="n">agg</span><span class="p">(</span><span class="n">F</span><span class="o">.</span><span class="n">countDistinct</span><span class="p">(</span><span class="s1">&#39;date_trunc&#39;</span><span class="p">)</span><span class="o">.</span><span class="n">alias</span><span class="p">(</span><span class="s1">&#39;n_days&#39;</span><span class="p">))</span>
                  <span class="o">.</span><span class="n">withColumn</span><span class="p">(</span><span class="s1">&#39;max_days&#39;</span><span class="p">,</span> <span class="n">F</span><span class="o">.</span><span class="n">max</span><span class="p">(</span><span class="s1">&#39;n_days&#39;</span><span class="p">)</span><span class="o">.</span><span class="n">over</span><span class="p">(</span><span class="n">w</span><span class="p">))</span>
                  <span class="o">.</span><span class="n">where</span><span class="p">(</span><span class="n">col</span><span class="p">(</span><span class="s1">&#39;n_days&#39;</span><span class="p">)</span> <span class="o">==</span> <span class="n">col</span><span class="p">(</span><span class="s1">&#39;max_days&#39;</span><span class="p">))</span>
                  <span class="o">.</span><span class="n">groupby</span><span class="p">(</span><span class="s1">&#39;user_id&#39;</span><span class="p">)</span>
                  <span class="o">.</span><span class="n">agg</span><span class="p">(</span><span class="n">F</span><span class="o">.</span><span class="n">first</span><span class="p">(</span><span class="s1">&#39;geom_id&#39;</span><span class="p">)</span><span class="o">.</span><span class="n">alias</span><span class="p">(</span><span class="s1">&#39;geom_id&#39;</span><span class="p">))</span>
-                 <span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">admins</span><span class="p">,</span> <span class="n">on</span><span class="o">=</span><span class="s1">&#39;geom_id&#39;</span><span class="p">)</span>
+                 <span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">get_admins_by_metro_area</span><span class="p">(</span><span class="n">spark</span><span class="p">,</span> <span class="n">country</span><span class="p">,</span> <span class="n">admin_path</span><span class="p">),</span> <span class="n">on</span><span class="o">=</span><span class="s1">&#39;geom_id&#39;</span><span class="p">)</span>
                  <span class="o">.</span><span class="n">drop</span><span class="p">(</span><span class="s1">&#39;geom_id&#39;</span><span class="p">))</span>
+    <span class="n">user_geom</span> <span class="o">=</span> <span class="n">user_geom</span><span class="o">.</span><span class="n">toPandas</span><span class="p">()</span>
+    <span class="n">user_geom</span><span class="p">[</span><span class="s1">&#39;country&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">country</span>
+    <span class="k">return</span> <span class="n">user_geom</span></div>
 
-    <span class="n">usrs</span> <span class="o">=</span> <span class="p">(</span><span class="n">user_geom</span>
-            <span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">active_users</span><span class="p">,</span> <span class="n">on</span><span class="o">=</span><span class="s1">&#39;user_id&#39;</span><span class="p">,</span> <span class="n">how</span><span class="o">=</span><span class="s1">&#39;inner&#39;</span><span class="p">)</span>
-            <span class="o">.</span><span class="n">toPandas</span><span class="p">())</span>
-    <span class="n">usrs</span><span class="p">[</span><span class="s2">&quot;country&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">country</span>
 
-    <span class="n">w</span> <span class="o">=</span> <span class="n">Window</span><span class="o">.</span><span class="n">partitionBy</span><span class="p">(</span><span class="s1">&#39;user_id&#39;</span><span class="p">,</span> <span class="s1">&#39;date_trunc&#39;</span><span class="p">)</span>
+<div class="viewcode-block" id="get_admins_by_metro_area"><a class="viewcode-back" href="../../wbgps.html#wbgps.analysis.get_admins_by_metro_area">[docs]</a><span class="k">def</span> <span class="nf">get_admins_by_metro_area</span><span class="p">(</span><span class="n">spark</span><span class="p">,</span> <span class="n">country</span><span class="p">,</span> <span class="n">admin_path</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Get admins by metro area.</span>
+
+<span class="sd">    Args:</span>
+<span class="sd">        spark (SparkSession): Spark session</span>
+<span class="sd">        country (str): Country name</span>
+<span class="sd">        admin_path (str): Path to admin file</span>
+
+<span class="sd">    Returns:</span>
+<span class="sd">        DataFrame: Data frame with admins by metro area</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">admins</span><span class="p">,</span> <span class="n">admins_by_metro_area</span><span class="p">,</span> <span class="n">pops</span> <span class="o">=</span> <span class="n">process_admin</span><span class="p">(</span><span class="n">country</span><span class="p">,</span> <span class="n">admin_path</span><span class="p">)</span>
+    <span class="n">admins_by_metro_area</span> <span class="o">=</span> <span class="n">admins_by_metro_area</span><span class="o">.</span><span class="n">astype</span><span class="p">({</span><span class="s1">&#39;geom_id&#39;</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="s1">&#39;wealth_label&#39;</span><span class="p">:</span> <span class="nb">str</span><span class="p">})</span>
+    <span class="k">return</span> <span class="n">spark</span><span class="o">.</span><span class="n">createDataFrame</span><span class="p">(</span><span class="n">admins_by_metro_area</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="get_user_info"><a class="viewcode-back" href="../../wbgps.html#wbgps.analysis.get_user_info">[docs]</a><span class="k">def</span> <span class="nf">get_user_info</span><span class="p">(</span><span class="n">user_geom</span><span class="p">,</span> <span class="n">active_users</span><span class="p">,</span> <span class="n">country</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Get user information for the active users in the given city.</span>
+
+<span class="sd">    Args:</span>
+<span class="sd">        user_geom (DataFrame): Data frame with user information</span>
+<span class="sd">        active_users (DataFrame): Data frame with active users</span>
+<span class="sd">        country (str): Country name</span>
+
+<span class="sd">    Returns:</span>
+<span class="sd">        DataFrame: Data frame with user information for the active users in the given city</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">user_info</span> <span class="o">=</span> <span class="n">user_geom</span><span class="o">.</span><span class="n">merge</span><span class="p">(</span><span class="n">active_users</span><span class="o">.</span><span class="n">toPandas</span><span class="p">(),</span> <span class="n">on</span><span class="o">=</span><span class="s1">&#39;user_id&#39;</span><span class="p">)</span>
+    <span class="n">user_info</span><span class="p">[</span><span class="s1">&#39;country&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">country</span>
+    <span class="k">return</span> <span class="n">user_info</span></div>
+
+<div class="viewcode-block" id="get_rural_urban_info"><a class="viewcode-back" href="../../wbgps.html#wbgps.analysis.get_rural_urban_info">[docs]</a><span class="k">def</span> <span class="nf">get_rural_urban_info</span><span class="p">(</span><span class="n">country</span><span class="p">,</span> <span class="n">stops</span><span class="p">,</span> <span class="n">admin_path</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Get rural/urban information for each stop.</span>
+
+<span class="sd">    Args:</span>
+<span class="sd">        country (str): Country name</span>
+<span class="sd">        stops (DataFrame): Data frame with stop data</span>
+<span class="sd">        admin_path (str): Path to admin file</span>
+
+<span class="sd">    Returns:</span>
+<span class="sd">        DataFrame: Data frame with rural/urban information for each stop</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">admin_rural</span> <span class="o">=</span> <span class="n">read_admin</span><span class="p">(</span><span class="n">country</span><span class="p">)</span>
+
+    <span class="c1"># Get rural/urban info for each stop</span>
+    <span class="n">stops</span> <span class="o">=</span> <span class="n">stops</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">admin_rural</span><span class="p">,</span> <span class="n">on</span><span class="o">=</span><span class="s1">&#39;geom_id&#39;</span><span class="p">,</span> <span class="n">how</span><span class="o">=</span><span class="s1">&#39;inner&#39;</span><span class="p">)</span>
+    <span class="n">stops</span> <span class="o">=</span> <span class="n">stops</span><span class="o">.</span><span class="n">drop</span><span class="p">(</span><span class="s1">&#39;urban/rural&#39;</span><span class="p">)</span>
+    <span class="n">stops</span> <span class="o">=</span> <span class="n">stops</span><span class="o">.</span><span class="n">withColumnRenamed</span><span class="p">(</span><span class="s1">&#39;urban/rural_new&#39;</span><span class="p">,</span> <span class="s1">&#39;urban/rural&#39;</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">stops</span></div>
+
+<div class="viewcode-block" id="identify_migrations"><a class="viewcode-back" href="../../wbgps.html#wbgps.analysis.identify_migrations">[docs]</a><span class="k">def</span> <span class="nf">identify_migrations</span><span class="p">(</span><span class="n">stops</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Identify the direction of each migration.</span>
+
+<span class="sd">    Args:</span>
+<span class="sd">        stops (DataFrame): Data frame with stop data</span>
+
+<span class="sd">    Returns:</span>
+<span class="sd">        DataFrame: Data frame with the following columns:</span>
+<span class="sd">            - user_id: User ID</span>
+<span class="sd">            - date: Date of the stop</span>
+<span class="sd">            - geom_id: Geom ID of the stop</span>
+<span class="sd">            - prev_geom_id: Geom ID of the previous stop</span>
+<span class="sd">            - urban/rural: Rural/urban status of the stop</span>
+<span class="sd">            - prev_urban/rural: Rural/urban status of the previous stop</span>
+<span class="sd">            - change: Change in rural/urban status</span>
+<span class="sd">            - gap: Time gap between the stop and the previous stop</span>
+<span class="sd">            - rand_gap: Randomized time gap</span>
+<span class="sd">            - new_date: Date with randomized time gap</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">w</span> <span class="o">=</span> <span class="n">Window</span><span class="o">.</span><span class="n">partitionBy</span><span class="p">(</span><span class="s1">&#39;user_id&#39;</span><span class="p">)</span><span class="o">.</span><span class="n">orderBy</span><span class="p">(</span><span class="s1">&#39;date_trunc&#39;</span><span class="p">)</span>
     <span class="n">h_stops</span> <span class="o">=</span> <span class="p">(</span><span class="n">stops</span>
                <span class="o">.</span><span class="n">where</span><span class="p">(</span><span class="n">col</span><span class="p">(</span><span class="s1">&#39;location_type&#39;</span><span class="p">)</span> <span class="o">==</span> <span class="s1">&#39;H&#39;</span><span class="p">)</span>
-               <span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">active_users</span><span class="p">,</span> <span class="n">on</span><span class="o">=</span><span class="s1">&#39;user_id&#39;</span><span class="p">,</span> <span class="n">how</span><span class="o">=</span><span class="s1">&#39;inner&#39;</span><span class="p">)</span>
-               <span class="o">.</span><span class="n">groupby</span><span class="p">(</span><span class="s1">&#39;user_id&#39;</span><span class="p">,</span> <span class="s1">&#39;date_trunc&#39;</span><span class="p">,</span> <span class="s1">&#39;geom_id&#39;</span><span class="p">)</span>
-               <span class="o">.</span><span class="n">agg</span><span class="p">(</span><span class="n">F</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="s1">&#39;duration&#39;</span><span class="p">)</span><span class="o">.</span><span class="n">alias</span><span class="p">(</span><span class="s1">&#39;duration&#39;</span><span class="p">))</span>
-               <span class="o">.</span><span class="n">withColumn</span><span class="p">(</span><span class="s1">&#39;max_duration&#39;</span><span class="p">,</span> <span class="n">F</span><span class="o">.</span><span class="n">max</span><span class="p">(</span><span class="s1">&#39;duration&#39;</span><span class="p">)</span><span class="o">.</span><span class="n">over</span><span class="p">(</span><span class="n">w</span><span class="p">))</span>
-               <span class="o">.</span><span class="n">where</span><span class="p">(</span><span class="n">col</span><span class="p">(</span><span class="s1">&#39;duration&#39;</span><span class="p">)</span> <span class="o">==</span> <span class="n">col</span><span class="p">(</span><span class="s1">&#39;max_duration&#39;</span><span class="p">))</span>
-               <span class="o">.</span><span class="n">groupby</span><span class="p">(</span><span class="s1">&#39;user_id&#39;</span><span class="p">,</span> <span class="s1">&#39;date_trunc&#39;</span><span class="p">)</span>
-               <span class="o">.</span><span class="n">agg</span><span class="p">(</span><span class="n">F</span><span class="o">.</span><span class="n">first</span><span class="p">(</span><span class="s1">&#39;geom_id&#39;</span><span class="p">)</span><span class="o">.</span><span class="n">alias</span><span class="p">(</span><span class="s1">&#39;geom_id&#39;</span><span class="p">))</span>
-               <span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">admin_rural</span><span class="p">,</span> <span class="n">on</span><span class="o">=</span><span class="s1">&#39;geom_id&#39;</span><span class="p">,</span> <span class="n">how</span><span class="o">=</span><span class="s1">&#39;inner&#39;</span><span class="p">)</span>
-               <span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">user_geom</span><span class="p">,</span> <span class="n">on</span><span class="o">=</span><span class="s1">&#39;user_id&#39;</span><span class="p">,</span> <span class="n">how</span><span class="o">=</span><span class="s1">&#39;inner&#39;</span><span class="p">))</span>
-
-    <span class="c1"># look-up previous geom id to identify migrations with direction</span>
-    <span class="n">w</span> <span class="o">=</span> <span class="n">Window</span><span class="o">.</span><span class="n">partitionBy</span><span class="p">(</span><span class="s1">&#39;user_id&#39;</span><span class="p">)</span><span class="o">.</span><span class="n">orderBy</span><span class="p">(</span><span class="s1">&#39;date_trunc&#39;</span><span class="p">)</span>
-    <span class="n">h_stops</span> <span class="o">=</span> <span class="p">(</span><span class="n">h_stops</span>
                <span class="o">.</span><span class="n">withColumn</span><span class="p">(</span><span class="s1">&#39;prev_geom_id&#39;</span><span class="p">,</span> <span class="n">F</span><span class="o">.</span><span class="n">lag</span><span class="p">(</span><span class="s1">&#39;geom_id&#39;</span><span class="p">,</span> <span class="n">offset</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span><span class="o">.</span><span class="n">over</span><span class="p">(</span><span class="n">w</span><span class="p">))</span>
                <span class="o">.</span><span class="n">withColumn</span><span class="p">(</span><span class="s1">&#39;prev_urban/rural&#39;</span><span class="p">,</span> <span class="n">F</span><span class="o">.</span><span class="n">lag</span><span class="p">(</span><span class="s1">&#39;urban/rural&#39;</span><span class="p">,</span> <span class="n">offset</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span><span class="o">.</span><span class="n">over</span><span class="p">(</span><span class="n">w</span><span class="p">))</span>
                <span class="o">.</span><span class="n">withColumn</span><span class="p">(</span><span class="s1">&#39;prev_date&#39;</span><span class="p">,</span> <span class="n">F</span><span class="o">.</span><span class="n">lag</span><span class="p">(</span><span class="s1">&#39;date_trunc&#39;</span><span class="p">,</span> <span class="n">offset</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span><span class="o">.</span><span class="n">over</span><span class="p">(</span><span class="n">w</span><span class="p">))</span>
@@ -718,9 +735,29 @@
                <span class="o">.</span><span class="n">withColumn</span><span class="p">(</span><span class="s1">&#39;rand_gap&#39;</span><span class="p">,</span> <span class="p">(</span><span class="o">-</span><span class="mi">1</span> <span class="o">*</span> <span class="n">F</span><span class="o">.</span><span class="n">rand</span><span class="p">()</span> <span class="o">*</span> <span class="p">(</span><span class="n">col</span><span class="p">(</span><span class="s1">&#39;gap&#39;</span><span class="p">)</span> <span class="o">-</span> <span class="mi">1</span><span class="p">))</span><span class="o">.</span><span class="n">astype</span><span class="p">(</span><span class="n">IntegerType</span><span class="p">()))</span>
                <span class="o">.</span><span class="n">withColumn</span><span class="p">(</span><span class="s1">&#39;new_date&#39;</span><span class="p">,</span> <span class="n">F</span><span class="o">.</span><span class="n">expr</span><span class="p">(</span><span class="s2">&quot;date_add(date_trunc, rand_gap)&quot;</span><span class="p">))</span>
                <span class="o">.</span><span class="n">withColumn</span><span class="p">(</span><span class="s1">&#39;date_trunc&#39;</span><span class="p">,</span> <span class="n">col</span><span class="p">(</span><span class="s1">&#39;new_date&#39;</span><span class="p">)))</span>
-    <span class="c1"># .withColumn(&#39;date_trunc&#39;, F.when(col(&#39;gap&#39;) &gt; 30, col(&#39;new_date&#39;)).otherwise(col(&#39;date_trunc&#39;))))</span>
+    <span class="k">return</span> <span class="n">h_stops</span></div>
 
-    <span class="c1"># aggregate by day and change and return as pandas df</span>
+
+<div class="viewcode-block" id="calculate_stats"><a class="viewcode-back" href="../../wbgps.html#wbgps.analysis.calculate_stats">[docs]</a><span class="k">def</span> <span class="nf">calculate_stats</span><span class="p">(</span><span class="n">country</span><span class="p">,</span> <span class="n">h_stops</span><span class="p">,</span> <span class="n">user_info</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Calculate migration statistics.</span>
+
+<span class="sd">    Args:</span>
+<span class="sd">        country (str): Country name</span>
+<span class="sd">        h_stops (DataFrame): Data frame with stop data</span>
+<span class="sd">        user_info (DataFrame): Data frame with user information</span>
+
+<span class="sd">    Returns:</span>
+<span class="sd">        DataFrame: Data frame with migration statistics</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">admins_by_metro_area</span> <span class="o">=</span> <span class="n">get_admins_by_metro_area</span><span class="p">(</span><span class="n">spark</span><span class="p">,</span> <span class="n">country</span><span class="p">,</span> <span class="n">admin_path</span><span class="p">)</span>
+    <span class="n">admins_by_metro_area</span> <span class="o">=</span> <span class="n">admins_by_metro_area</span><span class="o">.</span><span class="n">astype</span><span class="p">({</span><span class="s1">&#39;geom_id&#39;</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="s1">&#39;wealth_label&#39;</span><span class="p">:</span> <span class="nb">str</span><span class="p">})</span>
+
+    <span class="c1"># Join with user info and get wealth label for each stop</span>
+    <span class="n">h_stops</span> <span class="o">=</span> <span class="n">h_stops</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">user_info</span><span class="p">[[</span><span class="s1">&#39;user_id&#39;</span><span class="p">,</span> <span class="s1">&#39;wealth_label&#39;</span><span class="p">]],</span> <span class="n">on</span><span class="o">=</span><span class="s1">&#39;user_id&#39;</span><span class="p">)</span>
+    <span class="n">h_stops</span> <span class="o">=</span> <span class="n">h_stops</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">admins_by_metro_area</span><span class="p">[[</span><span class="s1">&#39;geom_id&#39;</span><span class="p">,</span> <span class="s1">&#39;wealth_label&#39;</span><span class="p">]],</span> <span class="n">on</span><span class="o">=</span><span class="s1">&#39;geom_id&#39;</span><span class="p">)</span>
+
+    <span class="c1"># Aggregate by day, change, and wealth label</span>
     <span class="n">out</span> <span class="o">=</span> <span class="p">(</span><span class="n">h_stops</span>
            <span class="o">.</span><span class="n">groupby</span><span class="p">(</span><span class="s1">&#39;date_trunc&#39;</span><span class="p">,</span> <span class="s1">&#39;wealth_label&#39;</span><span class="p">,</span> <span class="s1">&#39;change&#39;</span><span class="p">)</span>
            <span class="o">.</span><span class="n">agg</span><span class="p">(</span><span class="n">F</span><span class="o">.</span><span class="n">countDistinct</span><span class="p">(</span><span class="s1">&#39;user_id&#39;</span><span class="p">)</span><span class="o">.</span><span class="n">alias</span><span class="p">(</span><span class="s1">&#39;n_users&#39;</span><span class="p">))</span>
@@ -728,86 +765,110 @@
            <span class="o">.</span><span class="n">toPandas</span><span class="p">())</span>
     <span class="n">out</span><span class="p">[</span><span class="s1">&#39;date&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">pd</span><span class="o">.</span><span class="n">to_datetime</span><span class="p">(</span><span class="n">out</span><span class="p">[</span><span class="s1">&#39;date&#39;</span><span class="p">])</span>
     <span class="n">out</span><span class="p">[</span><span class="s1">&#39;country&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">country</span>
-    <span class="k">return</span> <span class="n">out</span><span class="p">,</span> <span class="n">usrs</span></div>
+    <span class="k">return</span> <span class="n">out</span></div>
 
 
-<div class="viewcode-block" id="compute_rural_migration_stats"><a class="viewcode-back" href="../../wbgps.html#wbgps.analysis.compute_rural_migration_stats">[docs]</a><span class="k">def</span> <span class="nf">compute_rural_migration_stats</span><span class="p">(</span><span class="n">country</span><span class="p">,</span> <span class="n">hw</span><span class="p">,</span> <span class="n">ww</span><span class="p">,</span> <span class="n">wa</span><span class="p">,</span> <span class="n">mph</span><span class="p">,</span> <span class="n">mpw</span><span class="p">,</span> <span class="n">c_dates</span><span class="p">,</span> <span class="n">stop_path</span><span class="p">):</span>
+<div class="viewcode-block" id="compute_rural_migration_stats_city"><a class="viewcode-back" href="../../wbgps.html#wbgps.analysis.compute_rural_migration_stats_city">[docs]</a><span class="k">def</span> <span class="nf">compute_rural_migration_stats_city</span><span class="p">(</span><span class="n">spark</span><span class="p">,</span> <span class="n">country</span><span class="p">,</span> <span class="n">bins_wealth</span><span class="p">,</span> <span class="n">labels_wealth</span><span class="p">,</span> <span class="n">weights</span><span class="p">,</span> <span class="n">thresholds</span><span class="p">,</span> <span class="n">activity_level</span><span class="p">,</span>
+                                       <span class="n">c_dates</span><span class="p">,</span> <span class="n">admin_path</span><span class="p">,</span> <span class="n">stop_path_suffix</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Compute migration stats for a given city.</span>
+
+<span class="sd">    Args:</span>
+<span class="sd">        spark (SparkSession): Spark session</span>
+<span class="sd">        country (str): Country name</span>
+<span class="sd">        bins_wealth (list): List of bins for wealth</span>
+<span class="sd">        labels_wealth (list): List of labels for wealth bins</span>
+<span class="sd">        weights (dict): Dictionary of weights for different location types</span>
+<span class="sd">        thresholds (dict): Dictionary of minimum percentage thresholds for home and work stops</span>
+<span class="sd">        activity_level (str): Activity level</span>
+<span class="sd">        c_dates (list): List of dates</span>
+<span class="sd">        admin_path (str): Path to admin file</span>
+<span class="sd">        stop_path_suffix (str): Suffix for stop file path</span>
+
+<span class="sd">    Returns:</span>
+<span class="sd">        Tuple: A tuple of two pandas data frames:</span>
+<span class="sd">            1. Data frame with the following columns:</span>
+<span class="sd">                - date: Date of the stop</span>
+<span class="sd">                - wealth_label_home: Wealth label of the home location</span>
+<span class="sd">                - wealth_label_work: Wealth label of the work location</span>
+<span class="sd">                - change: Type of change (e.g., rural to urban)</span>
+<span class="sd">                - n_users: Number of users</span>
+<span class="sd">                - country: Country name</span>
+<span class="sd">            2. Data frame with user information for the active users in the given city</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="c1"># Process admin data</span>
+    <span class="n">admins</span><span class="p">,</span> <span class="n">admins_by_metro_area</span><span class="p">,</span> <span class="n">pops</span> <span class="o">=</span> <span class="n">process_admin</span><span class="p">(</span><span class="n">country</span><span class="p">,</span> <span class="n">admin_path</span><span class="p">)</span>
+    <span class="n">admins_by_metro_area</span> <span class="o">=</span> <span class="n">admins_by_metro_area</span><span class="o">.</span><span class="n">loc</span><span class="p">[</span>
+        <span class="n">admins_by_metro_area</span><span class="o">.</span><span class="n">metro_area_name</span> <span class="o">==</span> <span class="n">pops</span><span class="o">.</span><span class="n">reset_index</span><span class="p">()</span><span class="o">.</span><span class="n">metro_area_name</span><span class="p">[</span><span class="mi">0</span><span class="p">]]</span>
+    <span class="n">admins_by_metro_area</span><span class="p">[</span><span class="s1">&#39;wealth_label&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">pd</span><span class="o">.</span><span class="n">cut</span><span class="p">(</span><span class="n">admins_by_metro_area</span><span class="p">[</span><span class="s1">&#39;pct_wealth&#39;</span><span class="p">],</span> <span class="n">bins_wealth</span><span class="p">,</span>
+                                                  <span class="n">labels</span><span class="o">=</span><span class="n">labels_wealth</span><span class="p">)</span>
+    <span class="n">admins_by_metro_area</span> <span class="o">=</span> <span class="n">admins_by_metro_area</span><span class="o">.</span><span class="n">astype</span><span class="p">({</span><span class="s1">&#39;geom_id&#39;</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="s1">&#39;wealth_label&#39;</span><span class="p">:</span> <span class="nb">str</span><span class="p">})</span>
+    <span class="n">admins</span> <span class="o">=</span> <span class="n">spark</span><span class="o">.</span><span class="n">createDataFrame</span><span class="p">(</span><span class="n">admins_by_metro_area</span><span class="p">)</span><span class="o">.</span><span class="n">select</span><span class="p">(</span><span class="s1">&#39;geom_id&#39;</span><span class="p">,</span> <span class="s1">&#39;wealth_label&#39;</span><span class="p">)</span>
+
+    <span class="c1"># Read stop data</span>
+    <span class="n">durations_path</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">stop_path_prefix</span><span class="si">}</span><span class="s2">/</span><span class="si">{</span><span class="n">country</span><span class="si">}</span><span class="s2">/date</span><span class="si">{</span><span class="n">c_dates</span><span class="p">[</span><span class="n">country</span><span class="p">]</span><span class="si">}</span><span class="s2">/</span><span class="si">{</span><span class="n">stop_path_suffix</span><span class="si">}</span><span class="s2">/&quot;</span> <span class="o">+</span> \
+                     <span class="sa">f</span><span class="s2">&quot;durations_window_hw</span><span class="si">{</span><span class="n">weights</span><span class="p">[</span><span class="s1">&#39;home&#39;</span><span class="p">]</span><span class="si">}</span><span class="s2">_ww</span><span class="si">{</span><span class="n">weights</span><span class="p">[</span><span class="s1">&#39;work&#39;</span><span class="p">]</span><span class="si">}</span><span class="s2">_wa</span><span class="si">{</span><span class="n">weights</span><span class="p">[</span><span class="s1">&#39;activity&#39;</span><span class="p">]</span><span class="si">}</span><span class="s2">_&quot;</span> <span class="o">+</span> \
+                     <span class="sa">f</span><span class="s2">&quot;mph</span><span class="si">{</span><span class="n">thresholds</span><span class="p">[</span><span class="s1">&#39;home&#39;</span><span class="p">]</span><span class="si">}</span><span class="s2">_mpw</span><span class="si">{</span><span class="n">thresholds</span><span class="p">[</span><span class="s1">&#39;work&#39;</span><span class="p">]</span><span class="si">}</span><span class="s2">&quot;</span>
+    <span class="n">durations</span> <span class="o">=</span> <span class="n">spark</span><span class="o">.</span><span class="n">read</span><span class="o">.</span><span class="n">parquet</span><span class="p">(</span><span class="n">durations_path</span><span class="p">)</span>
+    <span class="n">active_users</span> <span class="o">=</span> <span class="n">get_active_list</span><span class="p">(</span><span class="n">durations</span><span class="p">,</span> <span class="n">country</span><span class="p">,</span> <span class="n">activity_level</span><span class="p">)</span>
+
+    <span class="n">personal_path</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">stop_path_prefix</span><span class="si">}</span><span class="s2">/</span><span class="si">{</span><span class="n">country</span><span class="si">}</span><span class="s2">/date</span><span class="si">{</span><span class="n">c_dates</span><span class="p">[</span><span class="n">country</span><span class="p">]</span><span class="si">}</span><span class="s2">/</span><span class="si">{</span><span class="n">stop_path_suffix</span><span class="si">}</span><span class="s2">/&quot;</span> <span class="o">+</span> \
+                    <span class="sa">f</span><span class="s2">&quot;personal_stop_location_hw</span><span class="si">{</span><span class="n">weights</span><span class="p">[</span><span class="s1">&#39;home&#39;</span><span class="p">]</span><span class="si">}</span><span class="s2">_ww</span><span class="si">{</span><span class="n">weights</span><span class="p">[</span><span class="s1">&#39;work&#39;</span><span class="p">]</span><span class="si">}</span><span class="s2">_wa</span><span class="si">{</span><span class="n">weights</span><span class="p">[</span><span class="s1">&#39;activity&#39;</span><span class="p">]</span><span class="si">}</span><span class="s2">_&quot;</span> <span class="o">+</span> \
+                    <span class="sa">f</span><span class="s2">&quot;mph</span><span class="si">{</span><span class="n">thresholds</span><span class="p">[</span><span class="s1">&#39;home&#39;</span><span class="p">]</span><span class="si">}</span><span class="s2">_mpw</span><span class="si">{</span><span class="n">thresholds</span><span class="p">[</span><span class="s1">&#39;work&#39;</span><span class="p">]</span><span class="si">}</span><span class="s2">&quot;</span>
+    <span class="n">stops</span> <span class="o">=</span> <span class="n">spark</span><span class="o">.</span><span class="n">read</span><span class="o">.</span><span class="n">parquet</span><span class="p">(</span><span class="n">personal_path</span><span class="p">)</span>
+
+    <span class="c1"># Filter active users and most frequent daily geom id</span>
+    <span class="n">user_geom</span> <span class="o">=</span> <span class="n">get_most_frequent_geom_id</span><span class="p">(</span><span class="n">spark</span><span class="p">,</span> <span class="n">stops</span><span class="p">,</span> <span class="n">active_users</span><span class="p">,</span> <span class="n">weights</span><span class="p">,</span> <span class="n">admin_path</span><span class="p">)</span>
+    <span class="n">user_info</span> <span class="o">=</span> <span class="n">get_user_info</span><span class="p">(</span><span class="n">user_geom</span><span class="p">,</span> <span class="n">active_users</span><span class="p">,</span> <span class="n">country</span><span class="p">)</span>
+
+    <span class="c1"># Get rural/urban info for each stop</span>
+    <span class="n">stops</span> <span class="o">=</span> <span class="n">get_rural_urban_info</span><span class="p">(</span><span class="n">stops</span><span class="p">,</span> <span class="n">admin_path</span><span class="p">)</span>
+
+    <span class="c1"># Identify migrations and calculate statistics</span>
+    <span class="n">migrations</span> <span class="o">=</span> <span class="n">identify_migrations</span><span class="p">(</span><span class="n">stops</span><span class="p">)</span>
+    <span class="n">stats</span> <span class="o">=</span> <span class="n">calculate_stats</span><span class="p">(</span><span class="n">migrations</span><span class="p">,</span> <span class="n">admins</span><span class="p">,</span> <span class="n">user_geom</span><span class="p">,</span> <span class="n">country</span><span class="p">)</span>
+
+    <span class="k">return</span> <span class="n">stats</span><span class="p">,</span> <span class="n">user_info</span></div>
+
+<div class="viewcode-block" id="compute_rural_migration_stats"><a class="viewcode-back" href="../../wbgps.html#wbgps.analysis.compute_rural_migration_stats">[docs]</a><span class="k">def</span> <span class="nf">compute_rural_migration_stats</span><span class="p">(</span><span class="n">country</span><span class="p">,</span> <span class="n">weights</span><span class="p">,</span> <span class="n">c_dates</span><span class="p">,</span> <span class="n">stop_path</span><span class="p">,</span> <span class="n">activity_level</span><span class="o">=</span><span class="mf">0.2</span><span class="p">):</span>
     <span class="sd">&quot;&quot;&quot;Compute rural migration stats.</span>
 
 <span class="sd">    Args:</span>
 <span class="sd">        country (str): Country name.</span>
-<span class="sd">        hw (int): Home window.</span>
-<span class="sd">        ww (int): Work window.</span>
-<span class="sd">        wa (int): Work activity.</span>
-<span class="sd">        mph (float): Minimum point home duration.</span>
-<span class="sd">        mpw (float): Minimum point work duration.</span>
+<span class="sd">        weights (dict): Dictionary containing weights for home, work, and activity.</span>
 <span class="sd">        c_dates (list): List of dates.</span>
 <span class="sd">        stop_path (str): Path to stops.</span>
+<span class="sd">        activity_level (float): Activity level. Default is 0.2.</span>
 
 <span class="sd">    Returns:</span>
-<span class="sd">        DF: Dataframe with rural migration stats.</span>
+<span class="sd">        DataFrame: Dataframe with rural migration stats.</span>
 
 <span class="sd">    &quot;&quot;&quot;</span>
-    <span class="c1"># read admin</span>
-    <span class="n">admin</span> <span class="o">=</span> <span class="n">read_admin</span><span class="p">(</span><span class="n">country</span><span class="p">)</span>
+    <span class="n">admin</span><span class="p">,</span> <span class="n">admins_by_metro_area</span><span class="p">,</span> <span class="n">pops</span> <span class="o">=</span> <span class="n">process_admin</span><span class="p">(</span><span class="n">country</span><span class="p">,</span> <span class="n">admin_path</span><span class="p">)</span>
+
+    <span class="n">admin_rural</span> <span class="o">=</span> <span class="n">admin</span><span class="p">[</span><span class="n">admin</span><span class="p">[</span><span class="s1">&#39;urban/rural&#39;</span><span class="p">]</span> <span class="o">==</span> <span class="s1">&#39;rural&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">reset_index</span><span class="p">()</span>
 
     <span class="c1"># get list of active users</span>
-    <span class="n">fname_nf</span> <span class="o">=</span> <span class="sa">f</span><span class="s1">&#39;durations_window_hw</span><span class="si">{</span><span class="n">hw</span><span class="si">}</span><span class="s1">_ww</span><span class="si">{</span><span class="n">ww</span><span class="si">}</span><span class="s1">_wa</span><span class="si">{</span><span class="n">wa</span><span class="si">}</span><span class="s1">_mph</span><span class="si">{</span><span class="n">mph</span><span class="si">}</span><span class="s1">_mpw</span><span class="si">{</span><span class="n">mpw</span><span class="si">}</span><span class="s1">&#39;</span>
-    <span class="n">durations_path_nf</span> <span class="o">=</span> <span class="sa">f</span><span class="s1">&#39;</span><span class="si">{</span><span class="n">stop_path</span><span class="si">}{</span><span class="n">country</span><span class="si">}</span><span class="s1">/accuracy100_maxtimestop3600_staytime300_radius50_dbscanradius50/date</span><span class="si">{</span><span class="n">c_dates</span><span class="p">[</span><span class="n">country</span><span class="p">]</span><span class="si">}</span><span class="s1">/&#39;</span> <span class="o">+</span> <span class="n">fname_nf</span>
-    <span class="n">durations</span> <span class="o">=</span> <span class="n">spark</span><span class="o">.</span><span class="n">read</span><span class="o">.</span><span class="n">parquet</span><span class="p">(</span><span class="n">durations_path_nf</span><span class="p">)</span>
+    <span class="n">durations</span> <span class="o">=</span> <span class="n">read_durations</span><span class="p">(</span><span class="n">country</span><span class="p">,</span> <span class="n">weights</span><span class="p">[</span><span class="s1">&#39;hw&#39;</span><span class="p">],</span> <span class="n">weights</span><span class="p">[</span><span class="s1">&#39;ww&#39;</span><span class="p">],</span> <span class="n">weights</span><span class="p">[</span><span class="s1">&#39;wa&#39;</span><span class="p">],</span> <span class="n">weights</span><span class="p">[</span><span class="s1">&#39;mph&#39;</span><span class="p">],</span> <span class="n">weights</span><span class="p">[</span><span class="s1">&#39;mpw&#39;</span><span class="p">],</span> <span class="n">c_dates</span><span class="p">,</span> <span class="n">stop_path</span><span class="p">)</span>
     <span class="n">active_users</span> <span class="o">=</span> <span class="n">get_active_list</span><span class="p">(</span><span class="n">durations</span><span class="p">,</span> <span class="n">country</span><span class="p">,</span> <span class="n">activity_level</span><span class="p">)</span>
-    <span class="n">admins_by_country</span><span class="p">,</span> <span class="n">admins_by_metro_area</span><span class="p">,</span> <span class="n">pop_metro_areas</span> <span class="o">=</span> <span class="n">process_admin</span><span class="p">(</span><span class="n">country</span><span class="p">,</span> <span class="n">admin_path</span><span class="p">)</span>
-    <span class="n">metro</span> <span class="o">=</span> <span class="p">(</span><span class="n">admins_by_metro_area</span>
-             <span class="o">.</span><span class="n">loc</span><span class="p">[</span><span class="n">admins_by_metro_area</span><span class="o">.</span><span class="n">metro_area_name</span> <span class="o">==</span> <span class="n">pop_metro_areas</span>
-             <span class="o">.</span><span class="n">reset_index</span><span class="p">()</span>
-             <span class="o">.</span><span class="n">head</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span>
-             <span class="o">.</span><span class="n">metro_area_name</span>
-             <span class="o">.</span><span class="n">to_list</span><span class="p">()[</span><span class="mi">0</span><span class="p">]][</span><span class="s2">&quot;geom_id&quot;</span><span class="p">]</span>
-             <span class="o">.</span><span class="n">to_list</span><span class="p">())</span>
+
+    <span class="n">metro</span> <span class="o">=</span> <span class="n">get_most_frequent_daily_geom_id</span><span class="p">(</span><span class="n">admins_by_metro_area</span><span class="p">,</span> <span class="n">pops</span><span class="p">)</span>
 
     <span class="c1"># read stops, filter actives, get most frequented daily geom id, and get rural/urban info</span>
-    <span class="n">personal_nf</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">&quot;personal_stop_location_hw</span><span class="si">{</span><span class="n">hw</span><span class="si">}</span><span class="s2">_ww</span><span class="si">{</span><span class="n">ww</span><span class="si">}</span><span class="s2">_wa</span><span class="si">{</span><span class="n">wa</span><span class="si">}</span><span class="s2">_mph</span><span class="si">{</span><span class="n">mph</span><span class="si">}</span><span class="s2">_mpw</span><span class="si">{</span><span class="n">mpw</span><span class="si">}</span><span class="s2">&quot;</span>
-    <span class="n">stops</span> <span class="o">=</span> <span class="n">spark</span><span class="o">.</span><span class="n">read</span><span class="o">.</span><span class="n">parquet</span><span class="p">(</span>
-        <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">stop_path</span><span class="si">}{</span><span class="n">country</span><span class="si">}</span><span class="s2">/accuracy100_maxtimestop3600_staytime300_radius50_dbscanradius50/date</span><span class="si">{</span><span class="n">c_dates</span><span class="p">[</span><span class="n">country</span><span class="p">]</span><span class="si">}</span><span class="s2">/&quot;</span> <span class="o">+</span> <span class="n">personal_nf</span><span class="p">)</span>
-    <span class="n">users_metro</span> <span class="o">=</span> <span class="n">stops</span><span class="o">.</span><span class="n">where</span><span class="p">(</span><span class="n">col</span><span class="p">(</span><span class="s1">&#39;location_type&#39;</span><span class="p">)</span> <span class="o">==</span> <span class="s1">&#39;H&#39;</span><span class="p">)</span><span class="o">.</span><span class="n">filter</span><span class="p">(</span>
-        <span class="n">F</span><span class="o">.</span><span class="n">col</span><span class="p">(</span><span class="s2">&quot;geom_id&quot;</span><span class="p">)</span><span class="o">.</span><span class="n">isin</span><span class="p">(</span><span class="n">metro</span><span class="p">))</span><span class="o">.</span><span class="n">select</span><span class="p">(</span><span class="s1">&#39;user_id&#39;</span><span class="p">)</span><span class="o">.</span><span class="n">distinct</span><span class="p">()</span>
-    <span class="n">stops</span> <span class="o">=</span> <span class="n">stops</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">users_metro</span><span class="p">,</span> <span class="n">on</span><span class="o">=</span><span class="s1">&#39;user_id&#39;</span><span class="p">,</span> <span class="n">how</span><span class="o">=</span><span class="s1">&#39;inner&#39;</span><span class="p">)</span><span class="o">.</span><span class="n">join</span><span class="p">(</span>
-        <span class="n">active_users</span><span class="p">,</span> <span class="n">on</span><span class="o">=</span><span class="s1">&#39;user_id&#39;</span><span class="p">,</span> <span class="n">how</span><span class="o">=</span><span class="s1">&#39;inner&#39;</span><span class="p">)</span>
+    <span class="n">personal_stops</span> <span class="o">=</span> <span class="n">read_personal_stops</span><span class="p">(</span><span class="n">country</span><span class="p">,</span> <span class="n">weights</span><span class="p">[</span><span class="s1">&#39;hw&#39;</span><span class="p">],</span> <span class="n">weights</span><span class="p">[</span><span class="s1">&#39;ww&#39;</span><span class="p">],</span> <span class="n">weights</span><span class="p">[</span><span class="s1">&#39;wa&#39;</span><span class="p">],</span> <span class="n">weights</span><span class="p">[</span><span class="s1">&#39;mph&#39;</span><span class="p">],</span> <span class="n">weights</span><span class="p">[</span><span class="s1">&#39;mpw&#39;</span><span class="p">],</span> <span class="n">c_dates</span><span class="p">,</span> <span class="n">stop_path</span><span class="p">)</span>
+    <span class="n">users_metro</span> <span class="o">=</span> <span class="n">get_users_metro</span><span class="p">(</span><span class="n">personal_stops</span><span class="p">,</span> <span class="n">metro</span><span class="p">)</span>
+    <span class="n">stops</span> <span class="o">=</span> <span class="n">filter_stops</span><span class="p">(</span><span class="n">personal_stops</span><span class="p">,</span> <span class="n">active_users</span><span class="p">,</span> <span class="n">users_metro</span><span class="p">)</span>
 
-    <span class="n">w</span> <span class="o">=</span> <span class="n">Window</span><span class="o">.</span><span class="n">partitionBy</span><span class="p">(</span><span class="s1">&#39;user_id&#39;</span><span class="p">,</span> <span class="s1">&#39;date_trunc&#39;</span><span class="p">)</span>
-    <span class="n">h_stops</span> <span class="o">=</span> <span class="p">(</span><span class="n">stops</span>
-               <span class="o">.</span><span class="n">where</span><span class="p">(</span><span class="n">col</span><span class="p">(</span><span class="s1">&#39;location_type&#39;</span><span class="p">)</span> <span class="o">==</span> <span class="s1">&#39;H&#39;</span><span class="p">)</span>
-               <span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">active_users</span><span class="p">,</span> <span class="n">on</span><span class="o">=</span><span class="s1">&#39;user_id&#39;</span><span class="p">,</span> <span class="n">how</span><span class="o">=</span><span class="s1">&#39;inner&#39;</span><span class="p">)</span>
-               <span class="o">.</span><span class="n">groupby</span><span class="p">(</span><span class="s1">&#39;user_id&#39;</span><span class="p">,</span> <span class="s1">&#39;date_trunc&#39;</span><span class="p">,</span> <span class="s1">&#39;geom_id&#39;</span><span class="p">)</span>
-               <span class="o">.</span><span class="n">agg</span><span class="p">(</span><span class="n">F</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="s1">&#39;duration&#39;</span><span class="p">)</span><span class="o">.</span><span class="n">alias</span><span class="p">(</span><span class="s1">&#39;duration&#39;</span><span class="p">))</span>
-               <span class="o">.</span><span class="n">withColumn</span><span class="p">(</span><span class="s1">&#39;max_duration&#39;</span><span class="p">,</span> <span class="n">F</span><span class="o">.</span><span class="n">max</span><span class="p">(</span><span class="s1">&#39;duration&#39;</span><span class="p">)</span><span class="o">.</span><span class="n">over</span><span class="p">(</span><span class="n">w</span><span class="p">))</span>
-               <span class="o">.</span><span class="n">where</span><span class="p">(</span><span class="n">col</span><span class="p">(</span><span class="s1">&#39;duration&#39;</span><span class="p">)</span> <span class="o">==</span> <span class="n">col</span><span class="p">(</span><span class="s1">&#39;max_duration&#39;</span><span class="p">))</span>
-               <span class="o">.</span><span class="n">groupby</span><span class="p">(</span><span class="s1">&#39;user_id&#39;</span><span class="p">,</span> <span class="s1">&#39;date_trunc&#39;</span><span class="p">)</span>
-               <span class="o">.</span><span class="n">agg</span><span class="p">(</span><span class="n">F</span><span class="o">.</span><span class="n">first</span><span class="p">(</span><span class="s1">&#39;geom_id&#39;</span><span class="p">)</span><span class="o">.</span><span class="n">alias</span><span class="p">(</span><span class="s1">&#39;geom_id&#39;</span><span class="p">))</span>
-               <span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">admin</span><span class="p">,</span> <span class="n">on</span><span class="o">=</span><span class="s1">&#39;geom_id&#39;</span><span class="p">,</span> <span class="n">how</span><span class="o">=</span><span class="s1">&#39;inner&#39;</span><span class="p">))</span>
+    <span class="n">user_geom</span> <span class="o">=</span> <span class="n">get_most_frequent_geom_id</span><span class="p">(</span><span class="n">stops</span><span class="p">,</span> <span class="n">metro</span><span class="p">,</span> <span class="n">admin</span><span class="p">)</span>
 
-    <span class="c1"># look-up previous geom id to identify migrations with direction</span>
-    <span class="n">w</span> <span class="o">=</span> <span class="n">Window</span><span class="o">.</span><span class="n">partitionBy</span><span class="p">(</span><span class="s1">&#39;user_id&#39;</span><span class="p">)</span><span class="o">.</span><span class="n">orderBy</span><span class="p">(</span><span class="s1">&#39;date_trunc&#39;</span><span class="p">)</span>
-    <span class="n">h_stops</span> <span class="o">=</span> <span class="p">(</span><span class="n">h_stops</span>
-               <span class="o">.</span><span class="n">withColumn</span><span class="p">(</span><span class="s1">&#39;prev_geom_id&#39;</span><span class="p">,</span> <span class="n">F</span><span class="o">.</span><span class="n">lag</span><span class="p">(</span><span class="s1">&#39;geom_id&#39;</span><span class="p">,</span> <span class="n">offset</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span><span class="o">.</span><span class="n">over</span><span class="p">(</span><span class="n">w</span><span class="p">))</span>
-               <span class="o">.</span><span class="n">withColumn</span><span class="p">(</span><span class="s1">&#39;prev_urban/rural&#39;</span><span class="p">,</span> <span class="n">F</span><span class="o">.</span><span class="n">lag</span><span class="p">(</span><span class="s1">&#39;urban/rural&#39;</span><span class="p">,</span> <span class="n">offset</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span><span class="o">.</span><span class="n">over</span><span class="p">(</span><span class="n">w</span><span class="p">))</span>
-               <span class="o">.</span><span class="n">withColumn</span><span class="p">(</span><span class="s1">&#39;prev_date&#39;</span><span class="p">,</span> <span class="n">F</span><span class="o">.</span><span class="n">lag</span><span class="p">(</span><span class="s1">&#39;date_trunc&#39;</span><span class="p">,</span> <span class="n">offset</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span><span class="o">.</span><span class="n">over</span><span class="p">(</span><span class="n">w</span><span class="p">))</span>
-               <span class="o">.</span><span class="n">where</span><span class="p">(</span><span class="n">col</span><span class="p">(</span><span class="s1">&#39;prev_geom_id&#39;</span><span class="p">)</span><span class="o">.</span><span class="n">isNotNull</span><span class="p">())</span>
-               <span class="o">.</span><span class="n">withColumn</span><span class="p">(</span><span class="s1">&#39;change&#39;</span><span class="p">,</span> <span class="n">F</span><span class="o">.</span><span class="n">when</span><span class="p">(</span><span class="n">col</span><span class="p">(</span><span class="s1">&#39;urban/rural&#39;</span><span class="p">)</span> <span class="o">==</span> <span class="n">col</span><span class="p">(</span><span class="s1">&#39;prev_urban/rural&#39;</span><span class="p">),</span> <span class="s1">&#39;no change&#39;</span><span class="p">)</span>
-                           <span class="o">.</span><span class="n">otherwise</span><span class="p">(</span><span class="n">F</span><span class="o">.</span><span class="n">when</span><span class="p">(</span><span class="n">col</span><span class="p">(</span><span class="s1">&#39;urban/rural&#39;</span><span class="p">)</span> <span class="o">==</span> <span class="s1">&#39;urban&#39;</span><span class="p">,</span> <span class="s1">&#39;rural to urban&#39;</span><span class="p">)</span>
-                                      <span class="o">.</span><span class="n">otherwise</span><span class="p">(</span><span class="n">F</span><span class="o">.</span><span class="n">when</span><span class="p">(</span><span class="n">col</span><span class="p">(</span><span class="s1">&#39;urban/rural&#39;</span><span class="p">)</span> <span class="o">==</span> <span class="s1">&#39;rural&#39;</span><span class="p">,</span> <span class="s1">&#39;urban to rural&#39;</span><span class="p">))))</span>
-               <span class="o">.</span><span class="n">withColumn</span><span class="p">(</span><span class="s1">&#39;gap&#39;</span><span class="p">,</span> <span class="n">F</span><span class="o">.</span><span class="n">datediff</span><span class="p">(</span><span class="n">col</span><span class="p">(</span><span class="s1">&#39;date_trunc&#39;</span><span class="p">),</span> <span class="n">col</span><span class="p">(</span><span class="s1">&#39;prev_date&#39;</span><span class="p">)))</span>
-               <span class="o">.</span><span class="n">withColumn</span><span class="p">(</span><span class="s1">&#39;rand_gap&#39;</span><span class="p">,</span> <span class="p">(</span><span class="o">-</span><span class="mi">1</span> <span class="o">*</span> <span class="n">F</span><span class="o">.</span><span class="n">rand</span><span class="p">()</span> <span class="o">*</span> <span class="p">(</span><span class="n">col</span><span class="p">(</span><span class="s1">&#39;gap&#39;</span><span class="p">)</span> <span class="o">-</span> <span class="mi">1</span><span class="p">))</span><span class="o">.</span><span class="n">astype</span><span class="p">(</span><span class="n">IntegerType</span><span class="p">()))</span>
-               <span class="o">.</span><span class="n">withColumn</span><span class="p">(</span><span class="s1">&#39;new_date&#39;</span><span class="p">,</span> <span class="n">F</span><span class="o">.</span><span class="n">expr</span><span class="p">(</span><span class="s2">&quot;date_add(date_trunc, rand_gap)&quot;</span><span class="p">))</span>
-               <span class="o">.</span><span class="n">withColumn</span><span class="p">(</span><span class="s1">&#39;date_trunc&#39;</span><span class="p">,</span> <span class="n">F</span><span class="o">.</span><span class="n">when</span><span class="p">(</span><span class="n">col</span><span class="p">(</span><span class="s1">&#39;gap&#39;</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">30</span><span class="p">,</span> <span class="n">col</span><span class="p">(</span><span class="s1">&#39;new_date&#39;</span><span class="p">))</span><span class="o">.</span><span class="n">otherwise</span><span class="p">(</span><span class="n">col</span><span class="p">(</span><span class="s1">&#39;date_trunc&#39;</span><span class="p">))))</span>
+    <span class="n">usrs</span> <span class="o">=</span> <span class="n">get_users_info</span><span class="p">(</span><span class="n">user_geom</span><span class="p">,</span> <span class="n">active_users</span><span class="p">,</span> <span class="n">country</span><span class="p">)</span>
 
-    <span class="c1"># aggregate by day and change and return as pandas df</span>
-    <span class="n">out</span> <span class="o">=</span> <span class="p">(</span><span class="n">h_stops</span>
-           <span class="o">.</span><span class="n">groupby</span><span class="p">(</span><span class="s1">&#39;date_trunc&#39;</span><span class="p">,</span> <span class="s1">&#39;change&#39;</span><span class="p">)</span>
-           <span class="o">.</span><span class="n">agg</span><span class="p">(</span><span class="n">F</span><span class="o">.</span><span class="n">countDistinct</span><span class="p">(</span><span class="s1">&#39;user_id&#39;</span><span class="p">)</span><span class="o">.</span><span class="n">alias</span><span class="p">(</span><span class="s1">&#39;n_users&#39;</span><span class="p">))</span>
-           <span class="o">.</span><span class="n">withColumnRenamed</span><span class="p">(</span><span class="s1">&#39;date_trunc&#39;</span><span class="p">,</span> <span class="s1">&#39;date&#39;</span><span class="p">)</span>
-           <span class="o">.</span><span class="n">toPandas</span><span class="p">())</span>
-    <span class="n">out</span><span class="p">[</span><span class="s1">&#39;date&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">pd</span><span class="o">.</span><span class="n">to_datetime</span><span class="p">(</span><span class="n">out</span><span class="p">[</span><span class="s1">&#39;date&#39;</span><span class="p">])</span>
+    <span class="n">h_stops</span> <span class="o">=</span> <span class="n">get_home_stops</span><span class="p">(</span><span class="n">stops</span><span class="p">,</span> <span class="n">active_users</span><span class="p">,</span> <span class="n">user_geom</span><span class="p">,</span> <span class="n">admin_rural</span><span class="p">)</span>
+
+    <span class="n">h_stops</span> <span class="o">=</span> <span class="n">identify_migrations</span><span class="p">(</span><span class="n">h_stops</span><span class="p">)</span>
+
+    <span class="n">out</span> <span class="o">=</span> <span class="n">calculate_stats</span><span class="p">(</span><span class="n">h_stops</span><span class="p">)</span>
+
     <span class="k">return</span> <span class="n">out</span></div>
 
 

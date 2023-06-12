@@ -48,15 +48,21 @@
 <li class="toctree-l3"><a class="reference internal" href="#submodules">Submodules</a></li>
 <li class="toctree-l3"><a class="reference internal" href="#module-wbgps.analysis">wbgps.analysis module</a><ul>
 <li class="toctree-l4"><a class="reference internal" href="#wbgps.analysis.base_diff_metric"><code class="docutils literal notranslate"><span class="pre">base_diff_metric()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#wbgps.analysis.calculate_stats"><code class="docutils literal notranslate"><span class="pre">calculate_stats()</span></code></a></li>
 <li class="toctree-l4"><a class="reference internal" href="#wbgps.analysis.compute_durations_and_admins"><code class="docutils literal notranslate"><span class="pre">compute_durations_and_admins()</span></code></a></li>
 <li class="toctree-l4"><a class="reference internal" href="#wbgps.analysis.compute_durations_normalized_by_wealth_home"><code class="docutils literal notranslate"><span class="pre">compute_durations_normalized_by_wealth_home()</span></code></a></li>
 <li class="toctree-l4"><a class="reference internal" href="#wbgps.analysis.compute_durations_normalized_by_wealth_home_wealth_work"><code class="docutils literal notranslate"><span class="pre">compute_durations_normalized_by_wealth_home_wealth_work()</span></code></a></li>
 <li class="toctree-l4"><a class="reference internal" href="#wbgps.analysis.compute_rural_migration_stats"><code class="docutils literal notranslate"><span class="pre">compute_rural_migration_stats()</span></code></a></li>
 <li class="toctree-l4"><a class="reference internal" href="#wbgps.analysis.compute_rural_migration_stats_city"><code class="docutils literal notranslate"><span class="pre">compute_rural_migration_stats_city()</span></code></a></li>
 <li class="toctree-l4"><a class="reference internal" href="#wbgps.analysis.get_active_list"><code class="docutils literal notranslate"><span class="pre">get_active_list()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#wbgps.analysis.get_admins_by_metro_area"><code class="docutils literal notranslate"><span class="pre">get_admins_by_metro_area()</span></code></a></li>
 <li class="toctree-l4"><a class="reference internal" href="#wbgps.analysis.get_migration_results"><code class="docutils literal notranslate"><span class="pre">get_migration_results()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#wbgps.analysis.get_most_frequent_geom_id"><code class="docutils literal notranslate"><span class="pre">get_most_frequent_geom_id()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#wbgps.analysis.get_rural_urban_info"><code class="docutils literal notranslate"><span class="pre">get_rural_urban_info()</span></code></a></li>
 <li class="toctree-l4"><a class="reference internal" href="#wbgps.analysis.get_single_metric_results"><code class="docutils literal notranslate"><span class="pre">get_single_metric_results()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#wbgps.analysis.get_user_info"><code class="docutils literal notranslate"><span class="pre">get_user_info()</span></code></a></li>
 <li class="toctree-l4"><a class="reference internal" href="#wbgps.analysis.google_change_metric"><code class="docutils literal notranslate"><span class="pre">google_change_metric()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#wbgps.analysis.identify_migrations"><code class="docutils literal notranslate"><span class="pre">identify_migrations()</span></code></a></li>
 <li class="toctree-l4"><a class="reference internal" href="#wbgps.analysis.output"><code class="docutils literal notranslate"><span class="pre">output()</span></code></a></li>
 <li class="toctree-l4"><a class="reference internal" href="#wbgps.analysis.output_hw"><code class="docutils literal notranslate"><span class="pre">output_hw()</span></code></a></li>
 <li class="toctree-l4"><a class="reference internal" href="#wbgps.analysis.plot_metrics"><code class="docutils literal notranslate"><span class="pre">plot_metrics()</span></code></a></li>
@@ -97,15 +103,21 @@
 <li class="toctree-l2"><a class="reference internal" href="#submodules">Submodules</a></li>
 <li class="toctree-l2"><a class="reference internal" href="#module-wbgps.analysis">wbgps.analysis module</a><ul>
 <li class="toctree-l3"><a class="reference internal" href="#wbgps.analysis.base_diff_metric"><code class="docutils literal notranslate"><span class="pre">base_diff_metric()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#wbgps.analysis.calculate_stats"><code class="docutils literal notranslate"><span class="pre">calculate_stats()</span></code></a></li>
 <li class="toctree-l3"><a class="reference internal" href="#wbgps.analysis.compute_durations_and_admins"><code class="docutils literal notranslate"><span class="pre">compute_durations_and_admins()</span></code></a></li>
 <li class="toctree-l3"><a class="reference internal" href="#wbgps.analysis.compute_durations_normalized_by_wealth_home"><code class="docutils literal notranslate"><span class="pre">compute_durations_normalized_by_wealth_home()</span></code></a></li>
 <li class="toctree-l3"><a class="reference internal" href="#wbgps.analysis.compute_durations_normalized_by_wealth_home_wealth_work"><code class="docutils literal notranslate"><span class="pre">compute_durations_normalized_by_wealth_home_wealth_work()</span></code></a></li>
 <li class="toctree-l3"><a class="reference internal" href="#wbgps.analysis.compute_rural_migration_stats"><code class="docutils literal notranslate"><span class="pre">compute_rural_migration_stats()</span></code></a></li>
 <li class="toctree-l3"><a class="reference internal" href="#wbgps.analysis.compute_rural_migration_stats_city"><code class="docutils literal notranslate"><span class="pre">compute_rural_migration_stats_city()</span></code></a></li>
 <li class="toctree-l3"><a class="reference internal" href="#wbgps.analysis.get_active_list"><code class="docutils literal notranslate"><span class="pre">get_active_list()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#wbgps.analysis.get_admins_by_metro_area"><code class="docutils literal notranslate"><span class="pre">get_admins_by_metro_area()</span></code></a></li>
 <li class="toctree-l3"><a class="reference internal" href="#wbgps.analysis.get_migration_results"><code class="docutils literal notranslate"><span class="pre">get_migration_results()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#wbgps.analysis.get_most_frequent_geom_id"><code class="docutils literal notranslate"><span class="pre">get_most_frequent_geom_id()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#wbgps.analysis.get_rural_urban_info"><code class="docutils literal notranslate"><span class="pre">get_rural_urban_info()</span></code></a></li>
 <li class="toctree-l3"><a class="reference internal" href="#wbgps.analysis.get_single_metric_results"><code class="docutils literal notranslate"><span class="pre">get_single_metric_results()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#wbgps.analysis.get_user_info"><code class="docutils literal notranslate"><span class="pre">get_user_info()</span></code></a></li>
 <li class="toctree-l3"><a class="reference internal" href="#wbgps.analysis.google_change_metric"><code class="docutils literal notranslate"><span class="pre">google_change_metric()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#wbgps.analysis.identify_migrations"><code class="docutils literal notranslate"><span class="pre">identify_migrations()</span></code></a></li>
 <li class="toctree-l3"><a class="reference internal" href="#wbgps.analysis.output"><code class="docutils literal notranslate"><span class="pre">output()</span></code></a></li>
 <li class="toctree-l3"><a class="reference internal" href="#wbgps.analysis.output_hw"><code class="docutils literal notranslate"><span class="pre">output_hw()</span></code></a></li>
 <li class="toctree-l3"><a class="reference internal" href="#wbgps.analysis.plot_metrics"><code class="docutils literal notranslate"><span class="pre">plot_metrics()</span></code></a></li>
@@ -185,6 +197,20 @@ end_baseline (date): Date (ymd) from which a baseline period ends
 other_groups (list, optional): Grouping variables. Defaults to [].</p>
 </dd>
 <dt>Returns:</dt><dd><p>Dataframe: Dataframe with the values of the two columns converted to Google’s change with respect of the mean value of the baseline period</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="wbgps.analysis.calculate_stats">
+<span class="sig-prename descclassname"><span class="pre">wbgps.analysis.</span></span><span class="sig-name descname"><span class="pre">calculate_stats</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">country</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">h_stops</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">user_info</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/wbgps/analysis.html#calculate_stats"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#wbgps.analysis.calculate_stats" title="Permalink to this definition"></a></dt>
+<dd><p>Calculate migration statistics.</p>
+<dl class="simple">
+<dt>Args:</dt><dd><p>country (str): Country name
+h_stops (DataFrame): Data frame with stop data
+user_info (DataFrame): Data frame with user information</p>
+</dd>
+<dt>Returns:</dt><dd><p>DataFrame: Data frame with migration statistics</p>
 </dd>
 </dl>
 </dd></dl>
@@ -354,53 +380,52 @@ bins_wealth (list): List of wealth bins</p>
 
 <dl class="py function">
 <dt class="sig sig-object py" id="wbgps.analysis.compute_rural_migration_stats">
-<span class="sig-prename descclassname"><span class="pre">wbgps.analysis.</span></span><span class="sig-name descname"><span class="pre">compute_rural_migration_stats</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">country</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">hw</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">ww</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">wa</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">mph</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">mpw</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">c_dates</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">stop_path</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/wbgps/analysis.html#compute_rural_migration_stats"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#wbgps.analysis.compute_rural_migration_stats" title="Permalink to this definition"></a></dt>
+<span class="sig-prename descclassname"><span class="pre">wbgps.analysis.</span></span><span class="sig-name descname"><span class="pre">compute_rural_migration_stats</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">country</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">weights</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">c_dates</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">stop_path</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">activity_level</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0.2</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/wbgps/analysis.html#compute_rural_migration_stats"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#wbgps.analysis.compute_rural_migration_stats" title="Permalink to this definition"></a></dt>
 <dd><p>Compute rural migration stats.</p>
 <dl class="simple">
 <dt>Args:</dt><dd><p>country (str): Country name.
-hw (int): Home window.
-ww (int): Work window.
-wa (int): Work activity.
-mph (float): Minimum point home duration.
-mpw (float): Minimum point work duration.
+weights (dict): Dictionary containing weights for home, work, and activity.
 c_dates (list): List of dates.
-stop_path (str): Path to stops.</p>
+stop_path (str): Path to stops.
+activity_level (float): Activity level. Default is 0.2.</p>
 </dd>
-<dt>Returns:</dt><dd><p>DF: Dataframe with rural migration stats.</p>
+<dt>Returns:</dt><dd><p>DataFrame: Dataframe with rural migration stats.</p>
 </dd>
 </dl>
 </dd></dl>
 
 <dl class="py function">
 <dt class="sig sig-object py" id="wbgps.analysis.compute_rural_migration_stats_city">
-<span class="sig-prename descclassname"><span class="pre">wbgps.analysis.</span></span><span class="sig-name descname"><span class="pre">compute_rural_migration_stats_city</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">country</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">bins_wealth</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">labels_wealth</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">hw</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">ww</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">wa</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">mph</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">mpw</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">activity_level</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">c_dates</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">admin_path</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">stop_path</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/wbgps/analysis.html#compute_rural_migration_stats_city"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#wbgps.analysis.compute_rural_migration_stats_city" title="Permalink to this definition"></a></dt>
-<dd><p>Migration stats for a given city.</p>
+<span class="sig-prename descclassname"><span class="pre">wbgps.analysis.</span></span><span class="sig-name descname"><span class="pre">compute_rural_migration_stats_city</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">spark</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">country</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">bins_wealth</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">labels_wealth</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">weights</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">thresholds</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">activity_level</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">c_dates</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">admin_path</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">stop_path_suffix</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/wbgps/analysis.html#compute_rural_migration_stats_city"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#wbgps.analysis.compute_rural_migration_stats_city" title="Permalink to this definition"></a></dt>
+<dd><p>Compute migration stats for a given city.</p>
 <dl class="simple">
-<dt>Args:</dt><dd><p>country (str): Country name
+<dt>Args:</dt><dd><p>spark (SparkSession): Spark session
+country (str): Country name
 bins_wealth (list): List of bins for wealth
 labels_wealth (list): List of labels for wealth bins
-hw (float): Weight of home
-ww (float): Weight of work
-wa (float): Weight of activity
-mph (float): Minimum percentage of home stops
-mpw (float): Minimum percentage of work stops
+weights (dict): Dictionary of weights for different location types
+thresholds (dict): Dictionary of minimum percentage thresholds for home and work stops
 activity_level (str): Activity level
 c_dates (list): List of dates
 admin_path (str): Path to admin file
-stop_path (str): Path to stop file</p>
+stop_path_suffix (str): Suffix for stop file path</p>
 </dd>
 <dt>Returns:</dt><dd><dl class="simple">
-<dt>DF: Data frame with the following columns:</dt><dd><ul class="simple">
+<dt>Tuple: A tuple of two pandas data frames:</dt><dd><ol class="arabic simple">
+<li><dl class="simple">
+<dt>Data frame with the following columns:</dt><dd><ul class="simple">
 <li><p>date: Date of the stop</p></li>
 <li><p>wealth_label_home: Wealth label of the home location</p></li>
 <li><p>wealth_label_work: Wealth label of the work location</p></li>
-<li><p>mean: Mean of the given column</p></li>
-<li><p>sem: Standard error of the mean of the given column</p></li>
-<li><p>n: Number of observations</p></li>
-<li><p>n_unique: Number of unique users</p></li>
-<li><p>weight: Weight of the user based on population</p></li>
-<li><p>date: Date of the stop</p></li>
+<li><p>change: Type of change (e.g., rural to urban)</p></li>
+<li><p>n_users: Number of users</p></li>
+<li><p>country: Country name</p></li>
 </ul>
+</dd>
+</dl>
+</li>
+<li><p>Data frame with user information for the active users in the given city</p></li>
+</ol>
 </dd>
 </dl>
 </dd>
@@ -418,6 +443,20 @@ OUTPUT: list of active individuals “user_id”</p>
 </dd></dl>
 
 <dl class="py function">
+<dt class="sig sig-object py" id="wbgps.analysis.get_admins_by_metro_area">
+<span class="sig-prename descclassname"><span class="pre">wbgps.analysis.</span></span><span class="sig-name descname"><span class="pre">get_admins_by_metro_area</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">spark</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">country</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">admin_path</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/wbgps/analysis.html#get_admins_by_metro_area"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#wbgps.analysis.get_admins_by_metro_area" title="Permalink to this definition"></a></dt>
+<dd><p>Get admins by metro area.</p>
+<dl class="simple">
+<dt>Args:</dt><dd><p>spark (SparkSession): Spark session
+country (str): Country name
+admin_path (str): Path to admin file</p>
+</dd>
+<dt>Returns:</dt><dd><p>DataFrame: Data frame with admins by metro area</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
 <dt class="sig sig-object py" id="wbgps.analysis.get_migration_results">
 <span class="sig-prename descclassname"><span class="pre">wbgps.analysis.</span></span><span class="sig-name descname"><span class="pre">get_migration_results</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">results</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">users</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">state</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">frac</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'net_rural_fraction'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">change</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">True</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">cumulated</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">True</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/wbgps/analysis.html#get_migration_results"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#wbgps.analysis.get_migration_results" title="Permalink to this definition"></a></dt>
 <dd><p>Get migration results.</p>
@@ -430,6 +469,44 @@ change (bool, optional): Wether is absolute or percentage change. Defaults to Tr
 cumulated (bool, optional): Cumulative. Defaults to True.</p>
 </dd>
 <dt>Returns:</dt><dd><p>DF: Dataframe with migration results.</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="wbgps.analysis.get_most_frequent_geom_id">
+<span class="sig-prename descclassname"><span class="pre">wbgps.analysis.</span></span><span class="sig-name descname"><span class="pre">get_most_frequent_geom_id</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">spark</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">stops</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">active_users</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">weights</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">admin_path</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/wbgps/analysis.html#get_most_frequent_geom_id"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#wbgps.analysis.get_most_frequent_geom_id" title="Permalink to this definition"></a></dt>
+<dd><p>Get the most frequent daily geom id for each active user.</p>
+<dl class="simple">
+<dt>Args:</dt><dd><p>spark (SparkSession): Spark session
+stops (DataFrame): Data frame with stop data
+active_users (DataFrame): Data frame with active users
+weights (dict): Dictionary of weights for different location types
+admin_path (str): Path to admin file</p>
+</dd>
+<dt>Returns:</dt><dd><dl class="simple">
+<dt>DataFrame: Data frame with the following columns:</dt><dd><ul class="simple">
+<li><p>user_id: User ID</p></li>
+<li><p>geom_id: Geom ID with the most frequent daily stops</p></li>
+<li><p>wealth_label: Wealth label of the geom ID</p></li>
+<li><p>country: Country name</p></li>
+</ul>
+</dd>
+</dl>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="wbgps.analysis.get_rural_urban_info">
+<span class="sig-prename descclassname"><span class="pre">wbgps.analysis.</span></span><span class="sig-name descname"><span class="pre">get_rural_urban_info</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">country</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">stops</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">admin_path</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/wbgps/analysis.html#get_rural_urban_info"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#wbgps.analysis.get_rural_urban_info" title="Permalink to this definition"></a></dt>
+<dd><p>Get rural/urban information for each stop.</p>
+<dl class="simple">
+<dt>Args:</dt><dd><p>country (str): Country name
+stops (DataFrame): Data frame with stop data
+admin_path (str): Path to admin file</p>
+</dd>
+<dt>Returns:</dt><dd><p>DataFrame: Data frame with rural/urban information for each stop</p>
 </dd>
 </dl>
 </dd></dl>
@@ -472,6 +549,20 @@ other_groups (list, optional): Other groups. Defaults to [].</p>
 </dd></dl>
 
 <dl class="py function">
+<dt class="sig sig-object py" id="wbgps.analysis.get_user_info">
+<span class="sig-prename descclassname"><span class="pre">wbgps.analysis.</span></span><span class="sig-name descname"><span class="pre">get_user_info</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">user_geom</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">active_users</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">country</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/wbgps/analysis.html#get_user_info"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#wbgps.analysis.get_user_info" title="Permalink to this definition"></a></dt>
+<dd><p>Get user information for the active users in the given city.</p>
+<dl class="simple">
+<dt>Args:</dt><dd><p>user_geom (DataFrame): Data frame with user information
+active_users (DataFrame): Data frame with active users
+country (str): Country name</p>
+</dd>
+<dt>Returns:</dt><dd><p>DataFrame: Data frame with user information for the active users in the given city</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
 <dt class="sig sig-object py" id="wbgps.analysis.google_change_metric">
 <span class="sig-prename descclassname"><span class="pre">wbgps.analysis.</span></span><span class="sig-name descname"><span class="pre">google_change_metric</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">df_original</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">start_baseline</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">end_baseline</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">other_groups</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">[]</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/wbgps/analysis.html#google_change_metric"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#wbgps.analysis.google_change_metric" title="Permalink to this definition"></a></dt>
 <dd><p>Metric change with respect of a baseline period</p>
@@ -485,6 +576,32 @@ other_groups (list, optional): Grouping variables. Defaults to [].</p>
 with respect of the mean value of the baseline period</p>
 </dd>
 <dt>NOTES:</dt><dd><p>Google uses as baseline period the 5-weeks period from Jan 3 to Feb 6</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="wbgps.analysis.identify_migrations">
+<span class="sig-prename descclassname"><span class="pre">wbgps.analysis.</span></span><span class="sig-name descname"><span class="pre">identify_migrations</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">stops</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/wbgps/analysis.html#identify_migrations"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#wbgps.analysis.identify_migrations" title="Permalink to this definition"></a></dt>
+<dd><p>Identify the direction of each migration.</p>
+<dl class="simple">
+<dt>Args:</dt><dd><p>stops (DataFrame): Data frame with stop data</p>
+</dd>
+<dt>Returns:</dt><dd><dl class="simple">
+<dt>DataFrame: Data frame with the following columns:</dt><dd><ul class="simple">
+<li><p>user_id: User ID</p></li>
+<li><p>date: Date of the stop</p></li>
+<li><p>geom_id: Geom ID of the stop</p></li>
+<li><p>prev_geom_id: Geom ID of the previous stop</p></li>
+<li><p>urban/rural: Rural/urban status of the stop</p></li>
+<li><p>prev_urban/rural: Rural/urban status of the previous stop</p></li>
+<li><p>change: Change in rural/urban status</p></li>
+<li><p>gap: Time gap between the stop and the previous stop</p></li>
+<li><p>rand_gap: Randomized time gap</p></li>
+<li><p>new_date: Date with randomized time gap</p></li>
+</ul>
+</dd>
+</dl>
 </dd>
 </dl>
 </dd></dl>

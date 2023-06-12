@@ -108,7 +108,7 @@ setup(name='wbgps',
           'infomap',
           'infostop',
           'pyspark',
-          'sklearn',
+          'scikit-learn',
           'seaborn',
           'datetime'],
       zip_safe=False)
