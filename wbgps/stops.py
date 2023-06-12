@@ -173,70 +173,63 @@ def get_stop_location(df, group_col, ordered_col):
 
     return df.orderBy(ordered_col).groupBy(group_col).applyInPandas(pandas_stop_location, schema=schema)
 
+def _to_unix_int(dt):
+    return int(dt.timestamp())
 
-#  schema_df = StructType([
-#      StructField('user_id', StringType(), False),
-#      StructField('t_start', LongType(), False),
-#      StructField('t_end', LongType(), False),
-#      StructField('lat', DoubleType(), False),
-#      StructField('lon', DoubleType(), False),
-#      StructField('cluster_label', LongType(), True),
-#      StructField('median_accuracy', DoubleType(), True),
-#      StructField('total_pings_stop', LongType(), True),
-#  ])
-#
-#
-#  def get_stop_location(df, radius, stay_time, min_pts_per_stop_location, max_time_stop_location, max_accuracy, db_scan_radius):
-#      @pandas_udf(schema_df, PandasUDFType.GROUPED_MAP)
-#      def function(df, radius, stay_time, min_pts_per_stop_location, max_time_stop_location, max_accuracy, db_scan_radius):
-#          identifier = df['user_id'].values[0]
-#          df.sort_values(by='epoch_time', inplace=True)  # shouldn't be necessary
-#
-#          data = df[["lat", "lon", 'epoch_time', "accuracy"]].values
-#          res = run_infostop(data, r1=radius, min_staying_time=stay_time, min_size=min_pts_per_stop_location,
-#                             max_time_between=max_time_stop_location, distance_metric='haversine')
-#
-#          df = pd.DataFrame(res, columns=[
-#              "t_start", "t_end", "lat", "lon", "median_accuracy", "total_pings_stop"])
-#
-#          # new filtering step based on median accuracy
-#          df = df[df['median_accuracy'] < max_accuracy]
-#
-#          df['user_id'] = identifier
-#          if not df.empty:
-#              #       df['cluster_label'] = get_labels(df[['lat', 'lon']])
-#              # notice that we don't have noise here, since any point that we consider is a stop location and hence has been already pre filtered by run_infostop (min_samples = 1 => no label =-1)
-#              db = DBSCAN(eps=db_scan_radius, min_samples=1, metric='haversine',
-#                          algorithm='ball_tree').fit(np.radians(df[['lat', 'lon']].values))
-#              df['cluster_label'] = db.labels_
-#          else:
-#              df['cluster_label'] = None
-#          return df
-#      return function
+def create_date_list():
+    @pandas_udf('array<struct<t_start:long,t_end:long>>', PandasUDFType.SCALAR)
+    def pandas_make_list(start: pd.Series, end: pd.Series) -> pd.Series:
+        #  def _to_unix_int(dt):
+        #      return int(dt.value // 10**9)
 
+        result = []
+        for s, e in zip(start, end):
+            s = pd.to_datetime(s, unit='s')
+            e = pd.to_datetime(e, unit='s')
 
-schema_cluster_df = StructType([
-    StructField('user_id', StringType(), False),
-    StructField('lat', DoubleType(), False),
-    StructField('lon', DoubleType(), False),
-    StructField('cluster_label', LongType(), True),
-    StructField('median_accuracy', DoubleType(), True),
-    StructField('total_pings_stop', LongType(), True),
-    StructField('total_duration_stop_location', LongType(), True),
-    StructField('t_start', LongType(), False),
-    StructField('t_end', LongType(), False),
-    StructField('duration', LongType(), False),
-])
+            parts = pd.date_range(s, e, freq='d', normalize=True).tolist()
+            if parts:
+                # Update the first timestamp
+                parts[0] = s
+                # Append the end timestamp if it is not midnight
+                if parts[-1] != e:
+                    parts.append(e)
+                unix_parts = [int(x.value // 10**9) for x in parts]
+                res = [(unix_parts[i], unix_parts[i+1]) for i in range(len(unix_parts) - 1)]
+                result.append(res)
+            else:
+                result.append([(_to_unix_int(s), _to_unix_int(e))])
 
+        return pd.Series(result)
 
-@pandas_udf(schema_cluster_df, PandasUDFType.GROUPED_MAP)
-def get_stop_cluster(df, db_scan_radius):
-    if not df.empty:
-        # notice that we don't have noise here, since any point that we consider is a stop location and hence has been already pre filtered by run_infostop (min_samples = 1 => no label =-1)
-        db = DBSCAN(eps=db_scan_radius, min_samples=1, metric='haversine',
-                    algorithm='ball_tree').fit(np.radians(df[['lat', 'lon']].values))
-        df['cluster_label'] = db.labels_
-    else:
-        df['cluster_label'] = None
-    return df
+    return pandas_make_list
+
+def get_stop_cluster(current, sl, group_col, db_scan_radius=3.1392246115209545e-05):
+    # group_col = 'uid'
+    def pandas_stop_cluster(key, data):
+        if not data.empty:
+            db = DBSCAN(eps=db_scan_radius, min_samples=1, metric='haversine',
+                        algorithm='ball_tree').fit(np.radians(data[['latitude',
+                                                                    'longitude']].values))
+            data['cluster_label'] = db.labels_
+        else:
+            data['cluster_label'] = None
+        return data
+
+    schema_cluster_df = StructType([
+        StructField('user_id', StringType(), False),
+        StructField('lat', DoubleType(), False),
+        StructField('lon', DoubleType(), False),
+        StructField('cluster_label', LongType(), True),
+        StructField('median_accuracy', DoubleType(), True),
+        StructField('total_pings_stop', LongType(), True),
+        StructField('total_duration_stop_location', LongType(), True),
+        StructField('t_start', LongType(), False),
+        StructField('t_end', LongType(), False),
+        StructField('duration', LongType(), False),
+    ])
+
+    df = current.union(sl)
+
+    return df.groupBy(group_col).applyInPandas(pandas_stop_cluster, schema=schema_cluster_df)
 
