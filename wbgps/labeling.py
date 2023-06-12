@@ -85,7 +85,7 @@ schema_df = StructType([
 ])
 
 
-def get_stop_location(user_df, start_hour_day, end_hour_day, min_pings_home_cluster_label, work_activity_average):
+def get_stop_locations(user_df, start_hour_day, end_hour_day, min_pings_home_cluster_label, work_activity_average):
     @pandas_udf(schema_df, PandasUDFType.GROUPED_MAP)
     def function(user_df, start_hour_day, end_hour_day, min_pings_home_cluster_label, work_activity_average):
         user_df['location_type'] = 'O'
