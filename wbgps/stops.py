@@ -91,26 +91,6 @@ def data_assertions(data):
   assert (np.min(data[:, 0]) > -90 and np.max(data[:, 0]) < 90),         "lat (column 0) must have values between -90 and 90"
   assert (np.min(data[:, 1]) > -180 and np.max(data[:, 1]) < 180),    "lon (column 1) must have values between -180 and 180"
 
-#  def run_infostop(data, r1=50, min_staying_time=300, min_size=2, max_time_between=3600, distance_metric='haversine'):
-#      """Apply Infostop algorithm to a set of pings.
-#
-#      Args:
-#          data (data frame): Data frame with geolocated pings with timestamp.
-#          r1 (float): Radius of maximum distance between pings.
-#          min_staying_time (float): Minimum time of consecutive pings inside a radius to be considered a stop.
-#          min_size (int): Number of pings to consider a stop candidate.
-#          max_time_between (float): Maximum time between two consecutive pings.
-#          distance_metric (str): Metric to measure distance.
-#
-#      Returns:
-#          data frame: Data frame with pings and labeled stops including centroids of stops.
-#      """
-#      data_assertions(data)
-#
-#      centroids, stat_labels = get_stationary_events(
-#          data[:, :3], r1, min_size, min_staying_time, max_time_between, distance_metric)
-#      return centroids, stat_labels #compute_intervals(centroids, stat_labels, data[:, 2], data[:, 3], data)
-
 def run_infostop(data, r1=50, min_staying_time=300, min_size=2, max_time_between=3600, distance_metric='haversine'):
     """Apply Infostop algorithm to a set of pings.
 
