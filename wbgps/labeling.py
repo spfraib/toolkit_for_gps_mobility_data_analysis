@@ -385,7 +385,7 @@ def interpolate_missing_dates_work(user_df, work_tmp):
     idx = pd.MultiIndex.from_frame(user_df[['cluster_label', 'date_trunc']])
     user_df.loc[idx.isin(work_label), 'location_type'] = 'W'
     return user_df
-    
+
 def get_labels_work(user_df, start_hour_day, end_hour_day, min_pings_home_cluster_label, work_activity_average):
     def pandas_labels_work(key, data):
         user_df = data
@@ -401,7 +401,7 @@ def get_labels_work(user_df, start_hour_day, end_hour_day, min_pings_home_cluste
         user_df = add_work_label(user_df, work_tmp)
         user_df = interpolate_missing_dates_work(user_df, work_tmp)
         return remove_unused_cols(user_df)
-    
+
     schema_df = StructType([
     StructField('uid', StringType(), False),
     StructField('t_start', LongType(), False),
@@ -423,6 +423,6 @@ def get_labels_work(user_df, start_hour_day, end_hour_day, min_pings_home_cluste
     StructField("date_trunc", TimestampType(), True)
     ])
     # print(user_df.columns)
-    
+
 
     return user_df.groupBy("uid").applyInPandas(pandas_labels_work, schema=schema_df)
