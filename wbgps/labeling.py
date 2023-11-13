@@ -387,7 +387,7 @@ def interpolate_missing_dates_work(user_df, work_tmp):
     user_df.loc[idx.isin(work_label), 'location_type'] = 'W'
     return user_df
 
-def get_labels_work(user_df, start_hour_day, end_hour_day, min_pings_home_cluster_label, work_activity_average):
+def get_labels_work(user_df, start_hour_day, end_hour_day, min_pings_home_cluster_label, work_activity_average, work_period_window, min_periods_over_window_work):
     def pandas_labels_work(key, data):
         user_df = data
         user_df['location_type'] = 'O'
@@ -415,15 +415,13 @@ def get_labels_work(user_df, start_hour_day, end_hour_day, min_pings_home_cluste
     StructField('cluster_label', LongType(), False),
     StructField('median_accuracy', DoubleType(), False),
     StructField('location_type', StringType(), True),
-    StructField('weekday', IntegerType(), True),
     StructField('work_label', LongType(), True),
     StructField('geom_id', StringType(), False),
     StructField('date', TimestampType(), True),
     StructField('t_start_hour', IntegerType(), True),
     StructField('t_end_hour', IntegerType(), True),
+    StructField('weekday', IntegerType(), True),
     StructField("date_trunc", TimestampType(), True)
     ])
-    # print(user_df.columns)
-
 
     return user_df.groupBy("uid").applyInPandas(pandas_labels_work, schema=schema_df)
