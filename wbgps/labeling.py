@@ -387,13 +387,19 @@ def interpolate_missing_dates_work(user_df, work_tmp):
     user_df.loc[idx.isin(work_label), 'location_type'] = 'W'
     return user_df
 
+
 def get_labels_work(user_df, start_hour_day, end_hour_day, min_pings_home_cluster_label, work_activity_average, work_period_window, min_periods_over_window_work):
     def pandas_labels_work(key, data):
         user_df = data
-        user_df['location_type'] = 'O'
+        # user_df['location_type'] = 'O'
         user_df['work_label'] = -1
-        # work_tmp = get_work_tmp(user_df, start_hour_day, end_hour_day, home_list)
-        work_tmp = get_work_tmp(user_df, start_hour_day, end_hour_day)
+        home_list = user_df.loc[user_df["location_type"] == "H"]#.unique()
+        if home_list.empty:
+            home_list = None
+        else:
+            home_list = home_list.unique()
+        work_tmp = get_work_tmp(user_df, start_hour_day, end_hour_day, home_list)
+        # work_tmp = get_work_tmp(user_df, start_hour_day, end_hour_day)
         if work_tmp.empty:
             return user_df
         work_tmp = compute_average_duration(work_tmp)
