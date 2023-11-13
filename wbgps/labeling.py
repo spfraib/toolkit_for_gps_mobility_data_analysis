@@ -300,9 +300,9 @@ def remove_unused_cols(df):
                'total_duration_stop_location', 'total_pings_stop',
                'cluster_label', 'median_accuracy', 'location_type',
                'home_label', 'geom_id', 'date', 't_start_hour',
-               't_end_hour', 'date_trunc']]
+               't_end_hour', 'weekday', 'date_trunc']]
 
-def get_labels_home(user_df, start_hour_day, end_hour_day, min_pings_home_cluster_label, work_activity_average):
+def get_labels_home(user_df, start_hour_day, end_hour_day, min_pings_home_cluster_label, work_activity_average, home_rolling_on_date, home_period_window, min_periods_over_window):
     def pandas_labels_home(key,data):
         user_df = data
         user_df = initialize_user_df(user_df)
@@ -314,26 +314,27 @@ def get_labels_home(user_df, start_hour_day, end_hour_day, min_pings_home_cluste
             return user_df
         user_df = add_home_label(user_df, home_tmp)
         user_df = interpolate_missing_dates(user_df, home_tmp)
-        return remove_unused_cols(user_df) #if home_tmp.cluster_label.unique().size != 0 else user_df.drop(['location_type', 'home_label'], axis=1)
+        return remove_unused_cols(user_df)#user_df) #if home_tmp.cluster_label.unique().size != 0 else user_df.drop(['location_type', 'home_label'], axis=1)
 
     schema_df = StructType([
-    StructField('uid', StringType(), False),
-    StructField('t_start', LongType(), False),
-    StructField('t_end', LongType(), False),
-    StructField('duration', LongType(), False),
-    StructField('latitude', DoubleType(), False),
-    StructField('longitude', DoubleType(), False),
-    StructField('total_duration_stop_location', LongType(), False),
-    StructField('total_pings_stop', LongType(), False),
-    StructField('cluster_label', LongType(), False),
-    StructField('median_accuracy', DoubleType(), False),
+    StructField('uid', StringType(), False),#
+    StructField('t_start', LongType(), False),#
+    StructField('t_end', LongType(), False),#
+    StructField('duration', LongType(), False),#
+    StructField('latitude', DoubleType(), False),#
+    StructField('longitude', DoubleType(), False),#
+    StructField('total_duration_stop_location', LongType(), False),#
+    StructField('total_pings_stop', LongType(), False),#
+    StructField('cluster_label', LongType(), False),#
+    StructField('median_accuracy', DoubleType(), False),#
     StructField('location_type', StringType(), True),
     StructField('home_label', LongType(), True),
-    StructField('geom_id', StringType(), False),
-    StructField('date', TimestampType(), True),
-    StructField('t_start_hour', IntegerType(), True),
-    StructField('t_end_hour', IntegerType(), True),
-    StructField("date_trunc", TimestampType(), True)
+    StructField('geom_id', StringType(), False),#
+    StructField('date', TimestampType(), True),#
+    StructField('t_start_hour', IntegerType(), True),#
+    StructField('t_end_hour', IntegerType(), True),#
+    StructField('weekday', IntegerType(), True),
+    StructField("date_trunc", TimestampType(), True)#
     ])
     # print(user_df.columns)
 
