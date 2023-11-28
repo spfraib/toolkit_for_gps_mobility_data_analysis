@@ -89,9 +89,9 @@ services:
     depends_on:
       - master
   jupyter:
-    image: jupyter/pyspark-notebook
+    image: wbgps_docker #jupyter/pyspark-notebook
     volumes:
-      - /home/ollin/Dropbox/enlace_hacia_documentos:/home/jovyan/work
+      - /home/ollin/Dropbox/enlace_hacia_documentos:/home/jovyan
     ports:
       - '8888:8888'
     depends_on:
