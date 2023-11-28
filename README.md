@@ -177,15 +177,15 @@ git clone https://github.com/spfraib/toolkit_for_gps_mobility_data_analysis
 cd toolkit_for_gps_mobility_data_analysis
 ```
 
-3. Install the dependencies:
+3. Install the package:
 ```sh
-pip install -r requirements.txt
+pip install .
 ```
 
 ### 🤖 Using toolkit_for_gps_mobility_data_analysis
 
-```sh
-python main.py
+```python
+using wbgps
 ```
 
 ### 🧪 Running Tests
