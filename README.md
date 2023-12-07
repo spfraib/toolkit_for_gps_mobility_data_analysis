@@ -196,15 +196,11 @@ pip install .
 ### 🤖 Using toolkit_for_gps_mobility_data_analysis
 
 ```python
-<<<<<<< HEAD
 import wbgps
-=======
-using wbgps
->>>>>>> 0181556d2774c4a71e55ea348465d1e81eb3b038
 ```
 
 ### 🧪 Tests
-Check out our [example notebook](./examples/labels_stop_package.ipynb) for a quick demonstration of how to use the toolkit.
+Check out our [example notebook](./examples/labels_stops_package.ipynb) for a quick demonstration of how to use the toolkit.
 
 <hr />
 
