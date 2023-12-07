@@ -1,0 +1,10 @@
+pandas
+numpy
+pyarrow
+infomap
+infostop
+pyspark
+scikit-learn
+seaborn
+datetime
+sphinx_rtd_theme
