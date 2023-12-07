@@ -5,22 +5,35 @@ import pandas as pd
 from datetime import timedelta
 
 
-def remove_unused_cols(final_df):
-    return final_df.drop(columns=['weekday'])
+def time_at_work(user_tmp, date_trunc, cluster_label):
+    """minimum fraction of 'duration' per day that you don't spend in your home_location for each cluster stop -> [10%,20%,30%]
+       if user_tmp[user_tmp.location_type !='H'].empty:
+       return np.NaN
+    Args:
+        x (_type_): _description_
+        user_tmp (DataFrame): DataFrame containing all the stops of a user. It is filtered by cluster_label and date_trunc. Needs the columns 'duration' and 'cluster_label'
 
-
-def time_at_work(x, user_tmp):
-    # 1. minimum fraction of 'duration' per day that you don't spend in your home_location for each cluster stop -> [10%,20%,30%]
-    #   if user_tmp[user_tmp.location_type !='H'].empty:
-    #     return np.NaN
+    Returns:
+        Float:  time_at_work / time_not_at_home
+    """
     time_not_at_home = user_tmp[user_tmp.date_trunc ==
-                                x.date_trunc]['duration'].sum()
-    time_at_work = user_tmp[(user_tmp['cluster_label'] == x.cluster_label) & (
-            user_tmp.date_trunc == x.date_trunc)]['duration'].sum()
+                                date_trunc]['duration'].sum()
+    time_at_work = user_tmp[(user_tmp['cluster_label'] == cluster_label) & (
+            user_tmp.date_trunc == date_trunc)]['duration'].sum()
     return time_at_work / time_not_at_home
 
 
 def days_at_work_dynamic(x, user_tmp, work_period_window):
+    """_summary_
+
+    Args:
+        x (_type_): _description_
+        user_tmp (_type_): _description_
+        work_period_window (_type_): _description_
+
+    Returns:
+        _type_: _description_
+    """
     # 2. minimum fraction of observed days of activity -> [20%,30%,40%]
     tmpdf = user_tmp[(user_tmp.date_trunc >= x.date_trunc - timedelta(
         days=work_period_window)) & (user_tmp.date_trunc <= x.date_trunc)]
@@ -67,120 +80,6 @@ schema_df = StructType([
 ])
 
 
-def get_stop_locations(user_df, start_hour_day, end_hour_day, min_pings_home_cluster_label, work_activity_average):
-    @pandas_udf(schema_df, PandasUDFType.GROUPED_MAP)
-    def function(user_df, start_hour_day, end_hour_day, min_pings_home_cluster_label, work_activity_average):
-        user_df['location_type'] = 'O'
-        user_df['home_label'] = -1
-        user_df['work_label'] = -1
-        #   raise Exception('Exception: columns',user_df.columns)
-        # HOME
-        # filter candidates as night-time stops
-        home_tmp = user_df[(user_df['t_start_hour'] >= end_hour_day) | (
-                user_df['t_end_hour'] <= start_hour_day)].copy()  # restrictive version of daytimes
-
-        if home_tmp.empty:  # if we don't have at least a home location, we return and not attemp to compute work location
-            return remove_unused_cols(user_df)
-        first_day = home_tmp['date_trunc'].min()
-        last_day = home_tmp['date_trunc'].max()
-        # work on clusters with "duration" attribute per day ("date_trunc")
-        home_tmp = home_tmp[['cluster_label', 'date_trunc', 'duration', 'total_pings_stop']].groupby(
-            ['cluster_label', 'date_trunc']).sum().reset_index().sort_values('date_trunc')
-        # computer cumulative duration of candidates over "period" window
-        home_tmp = home_tmp.merge(home_tmp[['date_trunc', 'cluster_label', 'duration', 'total_pings_stop']].groupby(
-            ['cluster_label']).apply(home_rolling_on_date).reset_index(), on=['date_trunc', 'cluster_label'],
-                                  suffixes=('', '_cum'))
-        print(home_tmp.columns)
-        ######
-        home_tmp = home_tmp[home_tmp.total_pings_stop_cum >
-                            min_pings_home_cluster_label].drop('total_pings_stop_cum', axis=1)
-
-        # filter out nan rows, equivalent to filter on min_days
-        home_tmp = home_tmp.dropna(subset=['duration_cum'])
-
-        if home_tmp.empty:  # if we don't have at least a home location, we return and not attemp to compute work location
-            return remove_unused_cols(user_df)
-
-        #####################
-        date_cluster = home_tmp.drop_duplicates(['cluster_label', 'date_trunc'])[
-            ['date_trunc', 'cluster_label']].copy()
-        date_cluster = date_cluster.drop_duplicates(['date_trunc'])
-        home_label = list(zip(date_cluster.cluster_label, date_cluster.date_trunc))
-        # creating a multinidex over which locating tuples of "date_trunc" and "home_label"
-        idx = pd.MultiIndex.from_frame(user_df[['cluster_label', 'date_trunc']])
-        user_df.loc[idx.isin(home_label), 'home_label'] = user_df.loc[idx.isin(
-            home_label), 'cluster_label']
-        #####################
-        base_dates = pd.date_range(start=first_day, end=last_day)
-        date_cluster = date_cluster.sort_values(
-            by='date_trunc').set_index('date_trunc')
-        date_cluster = date_cluster.reindex(base_dates)
-        if pd.notna(date_cluster['cluster_label']).sum() > 1:
-            date_cluster = date_cluster.interpolate(
-                method='nearest').ffill().bfill()
-        else:
-            date_cluster = date_cluster.ffill().bfill()
-        date_cluster.index.name = 'date_trunc'
-        date_cluster = date_cluster.reset_index()
-
-        home_label = list(zip(date_cluster.cluster_label, date_cluster.date_trunc))
-        # creating a multindex over which locating tuples of "date_trunc" and "home_label"
-        idx = pd.MultiIndex.from_frame(user_df[['cluster_label', 'date_trunc']])
-
-        user_df.loc[idx.isin(home_label), 'location_type'] = 'H'
-
-        home_list = home_tmp.cluster_label.unique()
-        if home_list.size == 0:
-            return remove_unused_cols(user_df)
-
-        ########
-        # WORK #
-        ########
-        work_tmp = user_df[~(user_df['cluster_label'].isin(home_list))].copy()
-        if work_tmp.empty:  # if we can't compute work location we return
-            return remove_unused_cols(user_df)
-        #   if daytime: ######don't like it
-        work_tmp = work_tmp[((work_tmp['t_start_hour'] >= start_hour_day + 4) & (work_tmp['t_end_hour']
-                                                                                 <= end_hour_day - 6)) & (
-                                ~work_tmp['weekday'].isin([1, 7]))]  # restrictive version of daytimes
-
-        if work_tmp.empty:  # if we can't compute work location we return
-            return remove_unused_cols(user_df)
-        first_day = work_tmp['date_trunc'].min()
-        # drop duplicates, smooth over "period" time window
-        work_tmp = work_tmp[['date_trunc', 'cluster_label', 'duration']].groupby(
-            ['cluster_label', 'date_trunc']).sum().reset_index()
-
-        work_tmp = work_tmp.merge(work_tmp[['date_trunc', 'cluster_label', 'duration']]
-                                  .groupby(['cluster_label'])
-                                  .apply(work_rolling_on_date)
-                                  .reset_index(), on=['date_trunc', 'cluster_label'], suffixes=('', '_average'))
-
-        # filter out candidates which on average on the period do not pass the constraint
-        work_tmp = work_tmp[(work_tmp.duration_average >= work_activity_average)]
-        # Select work clusters candidate: the clusters that passed the previous criteria are selected as work for the day
-        if work_tmp.empty:  # if we can't compute work location we return
-            return remove_unused_cols(user_df)
-
-        #####################
-        work_label = list(zip(work_tmp.cluster_label, work_tmp.date_trunc))
-        idx = pd.MultiIndex.from_frame(user_df[['cluster_label', 'date_trunc']])
-        work_list = work_tmp.cluster_label.unique()
-        if work_list.size == 0:
-            return remove_unused_cols(user_df)
-        # add cluster label to work_label on the day on which it is found to be work_location only
-        user_df.loc[idx.isin(work_label), 'work_label'] = user_df.loc[idx.isin(
-            work_label), 'cluster_label']
-        #####################
-        # add work labels to all user dataset
-        work_label = work_tmp['cluster_label'].unique()
-        idx = pd.Index(user_df['cluster_label'])
-        user_df.loc[idx.isin(work_label), 'location_type'] = 'W'
-
-        return remove_unused_cols(user_df)
-    return function
-
-
 def get_durations(durations, start_hour_day, end_hour_day):
     durations = (durations
                  .withColumn('hour', F.hour('date'))
@@ -202,14 +101,6 @@ def get_durations(durations, start_hour_day, end_hour_day):
         'O', col('O') / col('total_duration')).drop('total_duration')
     return durations
 
-
-
-def remove_unused_cols(df):
-    return df[['user_id', 't_start', 't_end', 'duration', 'lat', 'lon',
-               'total_duration_stop_location', 'total_pings_stop',
-               'cluster_label', 'median_accuracy', 'location_type',
-               'home_label', 'work_label', 'geom_id', 'date', 't_start_hour',
-               't_end_hour', 'date_trunc']]
 
 def home_rolling_on_date(x, home_period_window, min_periods_over_window):
     # the output dataframe will have as index the last date of the window and consider the previous "c.home_period_window" days to compute the window. Notice that this will be biased for the first c.home_period_window
@@ -270,6 +161,39 @@ def remove_unused_cols(df):
                't_end_hour', 'weekday', 'date_trunc']]
 
 def get_labels_home(user_df, start_hour_day, end_hour_day, min_pings_home_cluster_label, work_activity_average, home_period_window, min_periods_over_window):
+    """Label the stops of a user as home or not
+
+    Args:
+        user_df (Data Frame): PySpark DataFrame containing all the stops of a user. It is filtered by cluster_label and date_trunc. Needs the columns 'duration' and 'cluster_label'
+        start_hour_day (int): Starting hour of the activity day
+        end_hour_day (int): Ending hour of the activity day
+        min_pings_home_cluster_label (int): Minimum number of pings in a cluster to be considered as home
+        work_activity_average (float): Average fraction of time spent at work to be considered as work
+        home_period_window (int): Number of days to consider for the rolling window
+        min_periods_over_window (int): Minimum number of days to consider for the rolling window
+
+    Returns:
+        Data Frame: PySpark DataFrame containing all the stops of a user. It is filtered by cluster_label and date_trunc. Needs the columns 'duration' and 'cluster_label'. It contains the following columns:
+            - location_type: 'H' if home, 'W' if work, 'O' if other
+            - home_label: cluster_label of the home location
+            - work_label: cluster_label of the work location
+            - date_trunc: date of the stop
+            - weekday: day of the week of the stop
+            - t_start_hour: starting hour of the stop
+            - t_end_hour: ending hour of the stop
+            - date: date of the stop
+            - geom_id: geom_id of the stop
+            - uid: user_id of the stop
+            - t_start: starting timestamp of the stop
+            - t_end: ending timestamp of the stop
+            - duration: duration of the stop
+            - latitude: latitude of the stop
+            - longitude: longitude of the stop
+            - total_duration_stop_location: total duration of the stop
+            - total_pings_stop: total number of pings of the stop
+            - cluster_label: cluster_label of the stop
+            - median_accuracy: median accuracy of the stop
+    """
     def pandas_labels_home(key,data):
         user_df = data
         user_df = initialize_user_df(user_df)
@@ -309,17 +233,39 @@ def get_labels_home(user_df, start_hour_day, end_hour_day, min_pings_home_cluste
     return user_df.groupBy("uid").applyInPandas(pandas_labels_home, schema = schema_df)
 
 def work_rolling_on_date(x, work_period_window, min_periods_over_window_work):
-    # if on average over "period" centered in "date" a candidate satisfy the conditions then for "date" is selected as WORK location
+    """If on average over "period" centered in "date" a candidate satisfy the conditions then for "date" is selected as WORK location
+
+    Args:
+        x (Data Frame): DataFrame containing all the stops of a user. It is filtered by cluster_label and date_trunc. Needs the columns 'duration', 'cluster_label'
+        work_period_window (int): Number of days to consider for the rolling window
+        min_periods_over_window_work (int): Minimum number of days to consider for the rolling window
+
+    Returns:
+        Data Frame: DataFrame containing all the stops of a user. It is filtered by cluster_label and date_trunc. Needs the columns 'duration', 'cluster_label'. It contains the following columns:
+            - duration_average: average duration of the stop
+            - date_trunc: date of the stop
+            - cluster_label: cluster_label of the stop
+    """
     x = x.sort_values('date_trunc')
     return x.set_index('date_trunc')[['duration']].rolling(f'{work_period_window}D', min_periods=int(
         min_periods_over_window_work * work_period_window)).mean()
 
-# def get_work_tmp(user_df, start_hour_day, end_hour_day, home_list):
-#     work_tmp = user_df[~(user_df['cluster_label'].isin(home_list))].copy()
-#     work_tmp = work_tmp[((work_tmp['t_start_hour'] >= start_hour_day + 4) & (work_tmp['t_end_hour'] <= end_hour_day - 6)) & (~work_tmp['weekday'].isin([1, 7]))]
-#     return work_tmp
 
 def get_work_tmp(user_df, start_hour_day, end_hour_day, home_list=None):
+    """Get the work locations of a user
+
+    Args:
+        user_df (Data Frame): DataFrame containing all the stops of a user. It is filtered by cluster_label and date_trunc. Needs the columns 'duration', 'cluster_label'
+        start_hour_day (int): Starting hour of the activity day
+        end_hour_day (int): Ending hour of the activity day
+        home_list (list of ints, optional): List of cluster_labels of the home locations. Defaults to None.
+
+    Returns:
+        Data Frame: DataFrame containing all the stops of a user. It is filtered by cluster_label and date_trunc. Needs the columns 'duration', 'cluster_label'. It contains the following columns:
+            - duration_average: average duration of the stop
+            - date_trunc: date of the stop
+            - cluster_label: cluster_label of the stop
+    """
     if home_list is not None:
         work_tmp = user_df[~(user_df['cluster_label'].isin(home_list))].copy()
     else:
@@ -329,18 +275,90 @@ def get_work_tmp(user_df, start_hour_day, end_hour_day, home_list=None):
 
 
 def compute_average_duration(work_tmp, work_activity_average, work_period_window, min_periods_over_window_work):
+    """Compute the average duration of the work locations
+
+    Args:
+        work_tmp (Data Frame): DataFrame containing all the stops of a user. It is filtered by cluster_label and date_trunc. Needs the columns 'duration', 'cluster_label'
+        work_activity_average (float): Minimum average fraction of time spent at work to be considered as work
+        work_period_window (int): Number of days to consider for the rolling window
+        min_periods_over_window_work (int): Minimum number of days to consider for the rolling window
+
+    Returns:
+        Data Frame: DataFrame containing all the stops of a user. It is filtered by cluster_label and date_trunc. Needs the columns 'duration', 'cluster_label'. It contains the following columns:
+            - duration_average: average duration of the stop
+            - date_trunc: date of the stop
+            - cluster_label: cluster_label of the stop
+    """
     work_tmp = work_tmp[['cluster_label', 'date_trunc', 'duration']].groupby(['cluster_label', 'date_trunc']).sum().reset_index()
     work_tmp = work_tmp.merge(work_tmp[['date_trunc', 'cluster_label', 'duration']].groupby(['cluster_label']).apply(work_rolling_on_date, work_period_window, min_periods_over_window_work).reset_index(), on=['date_trunc', 'cluster_label'], suffixes=('', '_average'))
     work_tmp = work_tmp[(work_tmp.duration_average >= work_activity_average)]
     return work_tmp.dropna(subset=['duration_average'])
 
 def add_work_label(user_df, work_tmp):
+    """Add the work label to the user_df
+
+    Args:
+        user_df (Data Frame): DataFrame containing all the stops of a user. It is filtered by cluster_label and date_trunc. Needs the columns 'duration', 'cluster_label'
+        work_tmp (Data Frame): DataFrame containing all the stops of a user. It is filtered by cluster_label and date_trunc. Needs the columns 'duration', 'cluster_label'
+
+    Returns:
+        Data Frame: DataFrame containing all the stops of a user. It is filtered by cluster_label and date_trunc. Needs the columns 'duration', 'cluster_label'. It contains the following columns:
+            - work_label: cluster_label of the work location
+            - date_trunc: date of the stop
+            - cluster_label: cluster_label of the stop
+            - location_type: 'H' if home, 'W' if work, 'O' if other
+            - home_label: cluster_label of the home location
+            - work_label: cluster_label of the work location
+            - date_trunc: date of the stop
+            - weekday: day of the week of the stop
+            - t_start_hour: starting hour of the stop
+            - t_end_hour: ending hour of the stop
+            - date: date of the stop
+            - geom_id: geom_id of the stop
+            - uid: user_id of the stop
+            - t_start: starting timestamp of the stop
+            - t_end: ending timestamp of the stop
+            - duration: duration of the stop
+            - latitude: latitude of the stop
+            - longitude: longitude of the stop
+            - total_duration_stop_location: total duration of the stop
+            - total_pings_stop: total number of pings of the stop
+            - median_accuracy: median accuracy of the stop
+    """
     work_label = list(zip(work_tmp.cluster_label, work_tmp.date_trunc))
     idx = pd.MultiIndex.from_frame(user_df[['cluster_label', 'date_trunc']])
     user_df.loc[idx.isin(work_label), 'work_label'] = user_df.loc[idx.isin(work_label), 'cluster_label']
     return user_df
 
 def interpolate_missing_dates_work(user_df, work_tmp):
+    """Interpolate the missing dates of the work locations
+
+    Args:
+        user_df (Data Frame): DataFrame containing all the stops of a user. It is filtered by cluster_label and date_trunc. Needs the columns 'duration', 'cluster_label'
+        work_tmp (Data Frame): DataFrame containing all the stops of a user. It is filtered by cluster_label and date_trunc. Needs the columns 'duration', 'cluster_label'
+
+    Returns:
+        Data Frame: DataFrame containing all the stops of a user. It is filtered by cluster_label and date_trunc. Needs the columns 'duration', 'cluster_label'. It contains the following columns:
+            - location_type: 'H' if home, 'W' if work, 'O' if other
+            - home_label: cluster_label of the home location
+            - work_label: cluster_label of the work location
+            - date_trunc: date of the stop
+            - weekday: day of the week of the stop
+            - t_start_hour: starting hour of the stop
+            - t_end_hour: ending hour of the stop
+            - date: date of the stop
+            - geom_id: geom_id of the stop
+            - uid: user_id of the stop
+            - t_start: starting timestamp of the stop
+            - t_end: ending timestamp of the stop
+            - duration: duration of the stop
+            - latitude: latitude of the stop
+            - longitude: longitude of the stop
+            - total_duration_stop_location: total duration of the stop
+            - total_pings_stop: total number of pings of the stop
+            - cluster_label: cluster_label of the stop
+            - median_accuracy: median accuracy of the stop
+    """
     first_day = work_tmp['date_trunc'].min()
     last_day = work_tmp['date_trunc'].max()
     base_dates = pd.date_range(start=first_day, end=last_day)
@@ -358,6 +376,39 @@ def interpolate_missing_dates_work(user_df, work_tmp):
 
 
 def get_labels_work(user_df, start_hour_day, end_hour_day, min_pings_home_cluster_label, work_activity_average, work_period_window, min_periods_over_window_work):
+    """Get the work locations of a user
+
+    Args:
+        user_df (Data Frame): DataFrame containing all the stops of a user. It is filtered by cluster_label and date_trunc. Needs the columns 'duration', 'cluster_label'
+        start_hour_day (int): Starting hour of the activity day
+        end_hour_day (int): Ending hour of the activity day
+        min_pings_home_cluster_label (int): Minimum number of pings in a cluster to be considered as home
+        work_activity_average (float): Minimum average fraction of time spent at work to be considered as work
+        work_period_window (int): Minimum number of days to consider for the rolling window
+        min_periods_over_window_work (float): Minimum fraction of days to consider for the rolling window
+
+    Returns:
+        Data Frame: DataFrame containing all the stops of a user. It is filtered by cluster_label and date_trunc. Needs the columns 'duration', 'cluster_label'. It contains the following columns:
+            - location_type: 'H' if home, 'W' if work, 'O' if other
+            - home_label: cluster_label of the home location
+            - work_label: cluster_label of the work location
+            - date_trunc: date of the stop
+            - weekday: day of the week of the stop
+            - t_start_hour: starting hour of the stop
+            - t_end_hour: ending hour of the stop
+            - date: date of the stop
+            - geom_id: geom_id of the stop
+            - uid: user_id of the stop
+            - t_start: starting timestamp of the stop
+            - t_end: ending timestamp of the stop
+            - duration: duration of the stop
+            - latitude: latitude of the stop
+            - longitude: longitude of the stop
+            - total_duration_stop_location: total duration of the stop
+            - total_pings_stop: total number of pings of the stop
+            - cluster_label: cluster_label of the stop
+            - median_accuracy: median accuracy of the stop
+    """
     def pandas_labels_work(key, data):
         user_df = data
         # user_df['location_type'] = 'O'
@@ -401,3 +452,42 @@ def get_labels_work(user_df, start_hour_day, end_hour_day, min_pings_home_cluste
     ])
 
     return user_df.groupBy("uid").applyInPandas(pandas_labels_work, schema=schema_df)
+
+
+def get_labels(user_df, start_hour_day, end_hour_day, min_pings_home_cluster_label, work_activity_average, home_period_window, min_periods_over_window, work_period_window, min_periods_over_window_work):
+    """Compute the labels of a user
+
+    Args:
+        user_df (Data Frame): DataFrame containing all the stops of a user. It is filtered by cluster_label and date_trunc. Needs the columns 'duration', 'cluster_label'
+        start_hour_day (int): Starting hour of the activity day
+        end_hour_day (int): Ending hour of the activity day
+        min_pings_home_cluster_label (int): Minimum number of pings in a cluster to be considered as home
+        work_activity_average (float): Minimum average fraction of time spent at work to be considered as work
+        work_period_window (int): Minimum number of days to consider for the rolling window
+        min_periods_over_window_work (float): Minimum fraction of days to consider for the rolling window
+
+    Returns:
+        Data Frame: DataFrame containing all the stops of a user. It is filtered by cluster_label and date_trunc. Needs the columns 'duration', 'cluster_label'. It contains the following columns:
+            - location_type: 'H' if home, 'W' if work, 'O' if other
+            - home_label: cluster_label of the home location
+            - work_label: cluster_label of the work location
+            - date_trunc: date of the stop
+            - weekday: day of the week of the stop
+            - t_start_hour: starting hour of the stop
+            - t_end_hour: ending hour of the stop
+            - date: date of the stop
+            - geom_id: geom_id of the stop
+            - uid: user_id of the stop
+            - t_start: starting timestamp of the stop
+            - t_end: ending timestamp of the stop
+            - duration: duration of the stop
+            - latitude: latitude of the stop
+            - longitude: longitude of the stop
+            - total_duration_stop_location: total duration of the stop
+            - total_pings_stop: total number of pings of the stop
+            - cluster_label: cluster_label of the stop
+            - median_accuracy: median accuracy of the stop
+    """
+    user_df = get_labels_home(user_df, start_hour_day, end_hour_day, min_pings_home_cluster_label, work_activity_average, home_period_window, min_periods_over_window)
+    user_df = get_labels_work(user_df, start_hour_day, end_hour_day, min_pings_home_cluster_label, work_activity_average, work_period_window, min_periods_over_window_work)
+    return user_df

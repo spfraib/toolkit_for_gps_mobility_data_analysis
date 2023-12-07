@@ -72,8 +72,7 @@ def assert_latitude_range(data, lat_col='lat'):
         data (data frame): Data frame with geolocated pings with timestamp.
         lat_col (str): Name of the column containing the latitude values.
     """
-    assert (np.min(data[lat_col]) > -90 and np.max(data[lat_col]) <
-            90), f"{lat_col} must have values between -90 and 90 degrees"
+    assert (np.min(data[lat_col]) > -90 and np.max(data[lat_col]) < 90), f"{lat_col} must have values between -90 and 90 degrees"
 
 
 def assert_longitude_range(data, lon_col='lon'):
@@ -83,8 +82,7 @@ def assert_longitude_range(data, lon_col='lon'):
         data (data frame): Data frame with geolocated pings with timestamp.
         lon_col (str): Name of the column containing the longitude values.
     """
-    assert (np.min(data[lon_col]) > -180 and np.max(data[lon_col]) <
-            180), f"{lon_col} must have values between -180 and 180 degrees"
+    assert (np.min(data[lon_col]) > -180 and np.max(data[lon_col]) < 180), f"{lon_col} must have values between -180 and 180 degrees"
 
 def data_assertions(data):
   assert np.all(data[:-1, 2] <= data[1:, 2]), "Timestamps must be ordered"
@@ -124,6 +122,29 @@ def to_unix_int(date):
     return int(date.replace(tzinfo=timezone.utc).timestamp())
 
 def get_stop_location(df, group_col, ordered_col):
+    """Generate the list of stop locations for each user
+
+    Args:
+        df (Data Frame): A pyspark data frame with the following columns:
+            - latitude (float): Latitude of the ping
+            - longitude (float): Longitude of the ping
+            - epoch_time (int): Timestamp of the ping
+            - horizontal_accuracy (float): Accuracy of the ping
+            - uid (str): User id
+        group_col (str): Column to group by
+        ordered_col (str): Column to order by
+
+    Returns:
+        Data Frame: A pyspark data frame with the following columns:
+            - t_start (int): Start timestamp of the stop location
+            - t_end (int): End timestamp of the stop location
+            - latitude (float): Latitude of the stop location
+            - longitude (float): Longitude of the stop location
+            - median_accuracy (float): Median accuracy of the stop location
+            - total_pings_stop (int): Number of pings in the stop location
+            - uid (str): User id
+            - cluster_label (int): Cluster label of the stop location
+    """
     #  import pandas as pd
     def pandas_stop_location(key, data):
         identifier =  data['uid'].values[0]
@@ -154,9 +175,22 @@ def get_stop_location(df, group_col, ordered_col):
     return df.orderBy(ordered_col).groupBy(group_col).applyInPandas(pandas_stop_location, schema=schema)
 
 def _to_unix_int(dt):
+    """Converts a datetime object to UNIX Time
+
+    Args:
+        dt (datetime): Datetime object
+
+    Returns:
+        int: UNIX Time
+    """
     return int(dt.timestamp())
 
 def create_date_list():
+    """Creates a list of dates
+
+    Returns:
+        Pandas Series: List of dates
+    """
     @pandas_udf('array<struct<t_start:long,t_end:long>>', PandasUDFType.SCALAR)
     def pandas_make_list(start: pd.Series, end: pd.Series) -> pd.Series:
         #  def _to_unix_int(dt):
@@ -185,6 +219,40 @@ def create_date_list():
     return pandas_make_list
 
 def get_stop_cluster(current, sl, group_col, db_scan_radius=3.1392246115209545e-05):
+    """Cluster the stop locations
+
+    Args:
+        current (Data Frame): PySpark data frame with the following columns:
+            - latitude (float): Latitude of the ping
+            - longitude (float): Longitude of the ping
+            - epoch_time (int): Timestamp of the ping
+            - horizontal_accuracy (float): Accuracy of the ping
+            - uid (str): User id
+        sl (Data Frame): Output of get_stop_location. PySpark data frame with the following columns:
+            - t_start (int): Start timestamp of the stop location
+            - t_end (int): End timestamp of the stop location
+            - latitude (float): Latitude of the stop location
+            - longitude (float): Longitude of the stop location
+            - median_accuracy (float): Median accuracy of the stop location
+            - total_pings_stop (int): Number of pings in the stop location
+            - uid (str): User id
+            - cluster_label (int): Cluster label of the stop location
+        group_col (str): Column to group by
+        db_scan_radius (float, optional): Radius for dbscan algorithm. Defaults to 3.1392246115209545e-05.
+
+    Returns:
+        Data Frame: PySpark data frame with the following columns:
+            - user_id (str): User id
+            - lat (float): Latitude of the stop location
+            - lon (float): Longitude of the stop location
+            - cluster_label (int): Cluster label of the stop location
+            - median_accuracy (float): Median accuracy of the stop location
+            - total_pings_stop (int): Number of pings in the stop location
+            - total_duration_stop_location (int): Duration of the stop location
+            - t_start (int): Start timestamp of the stop location
+            - t_end (int): End timestamp of the stop location
+            - duration (int): Duration of the stop location
+    """
     # group_col = 'uid'
     def pandas_stop_cluster(key, data):
         if not data.empty:

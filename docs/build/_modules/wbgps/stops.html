@@ -1,0 +1,385 @@
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" >
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>wbgps.stops &mdash; wbgps 0.0.1 documentation</title>
+      <link rel="stylesheet" href="../../_static/pygments.css" type="text/css" />
+      <link rel="stylesheet" href="../../_static/css/theme.css" type="text/css" />
+  <!--[if lt IE 9]>
+    <script src="../../_static/js/html5shiv.min.js"></script>
+  <![endif]-->
+  
+        <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.6.0/jquery.min.js"></script>
+        <script data-url_root="../../" id="documentation_options" src="../../_static/documentation_options.js"></script>
+        <script src="../../_static/doctools.js"></script>
+        <script src="../../_static/sphinx_highlight.js"></script>
+    <script src="../../_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="../../genindex.html" />
+    <link rel="search" title="Search" href="../../search.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="../../index.html" class="icon icon-home">
+            wbgps
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">Contents:</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../intro.html">Introduction</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../modules.html">wbgps</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../wbgps.html">wbgps package</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../../index.html">wbgps</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="../../index.html" class="icon icon-home" aria-label="Home"></a></li>
+          <li class="breadcrumb-item"><a href="../index.html">Module code</a></li>
+      <li class="breadcrumb-item active">wbgps.stops</li>
+      <li class="wy-breadcrumbs-aside">
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <h1>Source code for wbgps.stops</h1><div class="highlight"><pre>
+<span></span><span class="kn">from</span> <span class="nn">collections</span> <span class="kn">import</span> <span class="n">Counter</span>
+<span class="kn">from</span> <span class="nn">cpputils</span> <span class="kn">import</span> <span class="n">get_stationary_events</span>
+<span class="kn">from</span> <span class="nn">datetime</span> <span class="kn">import</span> <span class="n">timezone</span>
+<span class="kn">import</span> <span class="nn">numpy</span> <span class="k">as</span> <span class="nn">np</span>
+<span class="kn">from</span> <span class="nn">pyspark.sql.functions</span> <span class="kn">import</span> <span class="n">lag</span><span class="p">,</span> <span class="n">col</span><span class="p">,</span> <span class="n">countDistinct</span><span class="p">,</span> <span class="n">to_timestamp</span><span class="p">,</span> <span class="n">lit</span><span class="p">,</span> <span class="n">from_unixtime</span><span class="p">,</span> <span class="n">pandas_udf</span><span class="p">,</span> <span class="n">PandasUDFType</span>
+<span class="kn">from</span> <span class="nn">sklearn.cluster</span> <span class="kn">import</span> <span class="n">DBSCAN</span>
+<span class="kn">import</span> <span class="nn">pandas</span> <span class="k">as</span> <span class="nn">pd</span>
+
+<span class="kn">from</span> <span class="nn">pyspark.sql.types</span> <span class="kn">import</span> <span class="n">StructType</span><span class="p">,</span> <span class="n">StructField</span><span class="p">,</span> <span class="n">LongType</span><span class="p">,</span> <span class="n">StringType</span><span class="p">,</span> <span class="n">IntegerType</span><span class="p">,</span> <span class="n">TimestampType</span><span class="p">,</span> <span class="n">DoubleType</span><span class="p">,</span> <span class="n">FloatType</span>
+
+
+<div class="viewcode-block" id="get_most_frequent_label"><a class="viewcode-back" href="../../wbgps.html#wbgps.stops.get_most_frequent_label">[docs]</a><span class="k">def</span> <span class="nf">get_most_frequent_label</span><span class="p">(</span><span class="n">a</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;Get the most frequent label from a cluster</span>
+
+<span class="sd">    Args:</span>
+<span class="sd">        a (grouped df): cluster df</span>
+
+<span class="sd">    Returns:</span>
+<span class="sd">        int: label with the most frequent location label</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">if</span> <span class="n">a</span><span class="o">.</span><span class="n">size</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">:</span>
+        <span class="n">cnt</span> <span class="o">=</span> <span class="n">Counter</span><span class="p">(</span><span class="n">a</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">cnt</span><span class="o">.</span><span class="n">most_common</span><span class="p">(</span><span class="mi">1</span><span class="p">)[</span><span class="mi">0</span><span class="p">][</span><span class="mi">0</span><span class="p">]</span>
+    <span class="k">return</span> <span class="kc">None</span></div>
+
+
+<div class="viewcode-block" id="compute_intervals"><a class="viewcode-back" href="../../wbgps.html#wbgps.stops.compute_intervals">[docs]</a><span class="k">def</span> <span class="nf">compute_intervals</span><span class="p">(</span><span class="n">centroids</span><span class="p">,</span> <span class="n">labels</span><span class="p">,</span> <span class="n">timestamps</span><span class="p">,</span> <span class="n">accuracy</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;If the label is -1 it means that the point doesn&#39;t belong to any cluster. Otherwise there should be at least 2 points for a stop locations and they should assert (len(centroids) == len(community_labels))</span>
+
+<span class="sd">    Args:</span>
+<span class="sd">        centroids (list): List with coordinate tuple</span>
+<span class="sd">        labels (int): Stop label</span>
+<span class="sd">        timestamps (date): Timestamp of ping</span>
+<span class="sd">        accuracy (float): Accuracy associated to the GPS point</span>
+
+<span class="sd">    Returns:</span>
+<span class="sd">        list: list with consecutive locations of a users</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">i</span> <span class="o">=</span> <span class="mi">0</span>
+    <span class="n">seen</span> <span class="o">=</span> <span class="mi">0</span>
+    <span class="n">trajectory</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="k">while</span> <span class="n">i</span> <span class="o">&lt;</span> <span class="nb">len</span><span class="p">(</span><span class="n">labels</span><span class="p">):</span>
+        <span class="k">if</span> <span class="n">labels</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">==</span> <span class="o">-</span><span class="mi">1</span><span class="p">:</span>
+            <span class="n">i</span> <span class="o">+=</span> <span class="mi">1</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">start_index</span> <span class="o">=</span> <span class="n">i</span>
+            <span class="k">while</span> <span class="p">(</span><span class="n">i</span> <span class="o">+</span> <span class="mi">1</span> <span class="o">&lt;</span> <span class="nb">len</span><span class="p">(</span><span class="n">labels</span><span class="p">))</span> <span class="ow">and</span> <span class="p">(</span><span class="n">labels</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">==</span> <span class="n">labels</span><span class="p">[</span><span class="n">i</span> <span class="o">+</span> <span class="mi">1</span><span class="p">]):</span>
+                <span class="n">i</span> <span class="o">+=</span> <span class="mi">1</span>
+            <span class="n">trajectory</span><span class="o">.</span><span class="n">append</span><span class="p">((</span><span class="n">timestamps</span><span class="p">[</span><span class="n">start_index</span><span class="p">],</span> <span class="n">timestamps</span><span class="p">[</span><span class="n">i</span><span class="p">],</span> <span class="o">*</span><span class="n">centroids</span><span class="p">[</span><span class="n">seen</span><span class="p">],</span>
+                               <span class="n">np</span><span class="o">.</span><span class="n">median</span><span class="p">(</span><span class="n">accuracy</span><span class="p">[</span><span class="n">start_index</span><span class="p">:</span> <span class="n">i</span><span class="p">]),</span> <span class="n">i</span> <span class="o">-</span> <span class="n">start_index</span> <span class="o">+</span> <span class="mi">1</span><span class="p">))</span>
+            <span class="n">seen</span> <span class="o">+=</span> <span class="mi">1</span>
+            <span class="n">i</span> <span class="o">+=</span> <span class="mi">1</span>
+
+    <span class="k">return</span> <span class="n">trajectory</span></div>
+
+
+<div class="viewcode-block" id="assert_timestamps_ordered"><a class="viewcode-back" href="../../wbgps.html#wbgps.stops.assert_timestamps_ordered">[docs]</a><span class="k">def</span> <span class="nf">assert_timestamps_ordered</span><span class="p">(</span><span class="n">data</span><span class="p">,</span> <span class="n">timestamp_col</span><span class="o">=</span><span class="s1">&#39;datetime&#39;</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;Assert that timestamps in the data frame are in ascending order.</span>
+
+<span class="sd">    Args:</span>
+<span class="sd">        data (data frame): Data frame with geolocated pings with timestamp.</span>
+<span class="sd">        timestamp_col (str): Name of the column containing the timestamps.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">one_second</span> <span class="o">=</span> <span class="n">pd</span><span class="o">.</span><span class="n">Timedelta</span><span class="p">(</span><span class="n">seconds</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>
+    <span class="k">assert</span> <span class="n">np</span><span class="o">.</span><span class="n">all</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">diff</span><span class="p">(</span><span class="n">data</span><span class="p">[</span><span class="n">timestamp_col</span><span class="p">])</span> <span class="o">&gt;=</span> <span class="n">one_second</span><span class="p">),</span> <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">timestamp_col</span><span class="si">}</span><span class="s2"> must be in ascending order&quot;</span></div>
+
+
+<div class="viewcode-block" id="assert_latitude_range"><a class="viewcode-back" href="../../wbgps.html#wbgps.stops.assert_latitude_range">[docs]</a><span class="k">def</span> <span class="nf">assert_latitude_range</span><span class="p">(</span><span class="n">data</span><span class="p">,</span> <span class="n">lat_col</span><span class="o">=</span><span class="s1">&#39;lat&#39;</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;Assert that the latitude values in the data frame are within the valid range.</span>
+
+<span class="sd">    Args:</span>
+<span class="sd">        data (data frame): Data frame with geolocated pings with timestamp.</span>
+<span class="sd">        lat_col (str): Name of the column containing the latitude values.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">assert</span> <span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">min</span><span class="p">(</span><span class="n">data</span><span class="p">[</span><span class="n">lat_col</span><span class="p">])</span> <span class="o">&gt;</span> <span class="o">-</span><span class="mi">90</span> <span class="ow">and</span> <span class="n">np</span><span class="o">.</span><span class="n">max</span><span class="p">(</span><span class="n">data</span><span class="p">[</span><span class="n">lat_col</span><span class="p">])</span> <span class="o">&lt;</span> <span class="mi">90</span><span class="p">),</span> <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">lat_col</span><span class="si">}</span><span class="s2"> must have values between -90 and 90 degrees&quot;</span></div>
+
+
+<div class="viewcode-block" id="assert_longitude_range"><a class="viewcode-back" href="../../wbgps.html#wbgps.stops.assert_longitude_range">[docs]</a><span class="k">def</span> <span class="nf">assert_longitude_range</span><span class="p">(</span><span class="n">data</span><span class="p">,</span> <span class="n">lon_col</span><span class="o">=</span><span class="s1">&#39;lon&#39;</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;Assert that the longitude values in the data frame are within the valid range.</span>
+
+<span class="sd">    Args:</span>
+<span class="sd">        data (data frame): Data frame with geolocated pings with timestamp.</span>
+<span class="sd">        lon_col (str): Name of the column containing the longitude values.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">assert</span> <span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">min</span><span class="p">(</span><span class="n">data</span><span class="p">[</span><span class="n">lon_col</span><span class="p">])</span> <span class="o">&gt;</span> <span class="o">-</span><span class="mi">180</span> <span class="ow">and</span> <span class="n">np</span><span class="o">.</span><span class="n">max</span><span class="p">(</span><span class="n">data</span><span class="p">[</span><span class="n">lon_col</span><span class="p">])</span> <span class="o">&lt;</span> <span class="mi">180</span><span class="p">),</span> <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">lon_col</span><span class="si">}</span><span class="s2"> must have values between -180 and 180 degrees&quot;</span></div>
+
+<div class="viewcode-block" id="data_assertions"><a class="viewcode-back" href="../../wbgps.html#wbgps.stops.data_assertions">[docs]</a><span class="k">def</span> <span class="nf">data_assertions</span><span class="p">(</span><span class="n">data</span><span class="p">):</span>
+  <span class="k">assert</span> <span class="n">np</span><span class="o">.</span><span class="n">all</span><span class="p">(</span><span class="n">data</span><span class="p">[:</span><span class="o">-</span><span class="mi">1</span><span class="p">,</span> <span class="mi">2</span><span class="p">]</span> <span class="o">&lt;=</span> <span class="n">data</span><span class="p">[</span><span class="mi">1</span><span class="p">:,</span> <span class="mi">2</span><span class="p">]),</span> <span class="s2">&quot;Timestamps must be ordered&quot;</span>
+  <span class="k">assert</span> <span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">min</span><span class="p">(</span><span class="n">data</span><span class="p">[:,</span> <span class="mi">0</span><span class="p">])</span> <span class="o">&gt;</span> <span class="o">-</span><span class="mi">90</span> <span class="ow">and</span> <span class="n">np</span><span class="o">.</span><span class="n">max</span><span class="p">(</span><span class="n">data</span><span class="p">[:,</span> <span class="mi">0</span><span class="p">])</span> <span class="o">&lt;</span> <span class="mi">90</span><span class="p">),</span>         <span class="s2">&quot;lat (column 0) must have values between -90 and 90&quot;</span>
+  <span class="k">assert</span> <span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">min</span><span class="p">(</span><span class="n">data</span><span class="p">[:,</span> <span class="mi">1</span><span class="p">])</span> <span class="o">&gt;</span> <span class="o">-</span><span class="mi">180</span> <span class="ow">and</span> <span class="n">np</span><span class="o">.</span><span class="n">max</span><span class="p">(</span><span class="n">data</span><span class="p">[:,</span> <span class="mi">1</span><span class="p">])</span> <span class="o">&lt;</span> <span class="mi">180</span><span class="p">),</span>    <span class="s2">&quot;lon (column 1) must have values between -180 and 180&quot;</span></div>
+
+<div class="viewcode-block" id="run_infostop"><a class="viewcode-back" href="../../wbgps.html#wbgps.stops.run_infostop">[docs]</a><span class="k">def</span> <span class="nf">run_infostop</span><span class="p">(</span><span class="n">data</span><span class="p">,</span> <span class="n">r1</span><span class="o">=</span><span class="mi">50</span><span class="p">,</span> <span class="n">min_staying_time</span><span class="o">=</span><span class="mi">300</span><span class="p">,</span> <span class="n">min_size</span><span class="o">=</span><span class="mi">2</span><span class="p">,</span> <span class="n">max_time_between</span><span class="o">=</span><span class="mi">3600</span><span class="p">,</span> <span class="n">distance_metric</span><span class="o">=</span><span class="s1">&#39;haversine&#39;</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;Apply Infostop algorithm to a set of pings.</span>
+
+<span class="sd">    Args:</span>
+<span class="sd">        data (data frame): Data frame with geolocated pings with timestamp.</span>
+<span class="sd">        r1 (float): Radius of maximum distance between pings.</span>
+<span class="sd">        min_staying_time (float): Minimum time of consecutive pings inside a radius to be considered a stop.</span>
+<span class="sd">        min_size (int): Number of pings to consider a stop candidate.</span>
+<span class="sd">        max_time_between (float): Maximum time between two consecutive pings.</span>
+<span class="sd">        distance_metric (str): Metric to measure distance.</span>
+
+<span class="sd">    Returns:</span>
+<span class="sd">        data frame: Data frame with pings and labeled stops including centroids of stops.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">data_assertions</span><span class="p">(</span><span class="n">data</span><span class="p">)</span>
+
+    <span class="n">centroids</span><span class="p">,</span> <span class="n">stat_labels</span> <span class="o">=</span> <span class="n">get_stationary_events</span><span class="p">(</span>
+        <span class="n">data</span><span class="p">[:,</span> <span class="p">:</span><span class="mi">3</span><span class="p">],</span> <span class="n">r1</span><span class="p">,</span> <span class="n">min_size</span><span class="p">,</span> <span class="n">min_staying_time</span><span class="p">,</span> <span class="n">max_time_between</span><span class="p">,</span> <span class="n">distance_metric</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">compute_intervals</span><span class="p">(</span><span class="n">centroids</span><span class="p">,</span> <span class="n">stat_labels</span><span class="p">,</span> <span class="n">data</span><span class="p">[:,</span> <span class="mi">2</span><span class="p">],</span> <span class="n">data</span><span class="p">[:,</span> <span class="mi">3</span><span class="p">])</span></div>
+
+
+<div class="viewcode-block" id="to_unix_int"><a class="viewcode-back" href="../../wbgps.html#wbgps.stops.to_unix_int">[docs]</a><span class="k">def</span> <span class="nf">to_unix_int</span><span class="p">(</span><span class="n">date</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;converts str date to UNIX Time</span>
+
+<span class="sd">    Args:</span>
+<span class="sd">        date (date): ymd</span>
+
+<span class="sd">    Returns:</span>
+<span class="sd">        int: UNIX date</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">return</span> <span class="nb">int</span><span class="p">(</span><span class="n">date</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="n">tzinfo</span><span class="o">=</span><span class="n">timezone</span><span class="o">.</span><span class="n">utc</span><span class="p">)</span><span class="o">.</span><span class="n">timestamp</span><span class="p">())</span></div>
+
+<div class="viewcode-block" id="get_stop_location"><a class="viewcode-back" href="../../wbgps.html#wbgps.stops.get_stop_location">[docs]</a><span class="k">def</span> <span class="nf">get_stop_location</span><span class="p">(</span><span class="n">df</span><span class="p">,</span> <span class="n">group_col</span><span class="p">,</span> <span class="n">ordered_col</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;Generate the list of stop locations for each user</span>
+
+<span class="sd">    Args:</span>
+<span class="sd">        df (Data Frame): A pyspark data frame with the following columns:</span>
+<span class="sd">            - latitude (float): Latitude of the ping</span>
+<span class="sd">            - longitude (float): Longitude of the ping</span>
+<span class="sd">            - epoch_time (int): Timestamp of the ping</span>
+<span class="sd">            - horizontal_accuracy (float): Accuracy of the ping</span>
+<span class="sd">            - uid (str): User id</span>
+<span class="sd">        group_col (str): Column to group by</span>
+<span class="sd">        ordered_col (str): Column to order by</span>
+
+<span class="sd">    Returns:</span>
+<span class="sd">        Data Frame: A pyspark data frame with the following columns:</span>
+<span class="sd">            - t_start (int): Start timestamp of the stop location</span>
+<span class="sd">            - t_end (int): End timestamp of the stop location</span>
+<span class="sd">            - latitude (float): Latitude of the stop location</span>
+<span class="sd">            - longitude (float): Longitude of the stop location</span>
+<span class="sd">            - median_accuracy (float): Median accuracy of the stop location</span>
+<span class="sd">            - total_pings_stop (int): Number of pings in the stop location</span>
+<span class="sd">            - uid (str): User id</span>
+<span class="sd">            - cluster_label (int): Cluster label of the stop location</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="c1">#  import pandas as pd</span>
+    <span class="k">def</span> <span class="nf">pandas_stop_location</span><span class="p">(</span><span class="n">key</span><span class="p">,</span> <span class="n">data</span><span class="p">):</span>
+        <span class="n">identifier</span> <span class="o">=</span>  <span class="n">data</span><span class="p">[</span><span class="s1">&#39;uid&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">values</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+        <span class="n">res</span> <span class="o">=</span> <span class="n">run_infostop</span><span class="p">(</span><span class="n">data</span><span class="p">[[</span><span class="s2">&quot;latitude&quot;</span><span class="p">,</span> <span class="s2">&quot;longitude&quot;</span><span class="p">,</span> <span class="s1">&#39;epoch_time&#39;</span><span class="p">,</span> <span class="s2">&quot;horizontal_accuracy&quot;</span><span class="p">]]</span><span class="o">.</span><span class="n">values</span><span class="p">,</span> <span class="n">r1</span><span class="o">=</span><span class="mi">50</span><span class="p">,</span> <span class="n">min_staying_time</span><span class="o">=</span><span class="mi">300</span><span class="p">,</span> <span class="n">min_size</span><span class="o">=</span><span class="mi">2</span><span class="p">,</span> <span class="n">max_time_between</span><span class="o">=</span><span class="mi">3600</span><span class="p">,</span> <span class="n">distance_metric</span><span class="o">=</span><span class="s1">&#39;haversine&#39;</span><span class="p">)</span>
+
+        <span class="n">df</span> <span class="o">=</span> <span class="n">pd</span><span class="o">.</span><span class="n">DataFrame</span><span class="p">(</span><span class="n">res</span><span class="p">,</span> <span class="n">columns</span><span class="o">=</span><span class="p">[</span><span class="s2">&quot;t_start&quot;</span><span class="p">,</span>  <span class="s2">&quot;t_end&quot;</span><span class="p">,</span> <span class="s2">&quot;latitude&quot;</span><span class="p">,</span> <span class="s2">&quot;longitude&quot;</span><span class="p">,</span> <span class="s2">&quot;median_accuracy&quot;</span><span class="p">,</span> <span class="s2">&quot;total_pings_stop&quot;</span><span class="p">])</span>
+        <span class="n">df</span> <span class="o">=</span> <span class="n">df</span><span class="p">[</span><span class="n">df</span><span class="p">[</span><span class="s1">&#39;median_accuracy&#39;</span><span class="p">]</span> <span class="o">&lt;</span> <span class="mi">200</span><span class="p">]</span>
+        <span class="n">df</span><span class="p">[</span><span class="s1">&#39;uid&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">identifier</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">df</span><span class="o">.</span><span class="n">empty</span><span class="p">:</span>
+              <span class="n">db</span> <span class="o">=</span> <span class="n">DBSCAN</span><span class="p">(</span><span class="n">eps</span><span class="o">=</span><span class="mf">3.1392246115209545e-05</span><span class="p">,</span> <span class="n">min_samples</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span> <span class="n">metric</span><span class="o">=</span><span class="s1">&#39;haversine&#39;</span><span class="p">,</span> <span class="n">algorithm</span><span class="o">=</span><span class="s1">&#39;ball_tree&#39;</span><span class="p">)</span><span class="o">.</span><span class="n">fit</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">radians</span><span class="p">(</span><span class="n">df</span><span class="p">[[</span><span class="s1">&#39;latitude&#39;</span><span class="p">,</span> <span class="s1">&#39;longitude&#39;</span><span class="p">]]</span><span class="o">.</span><span class="n">values</span><span class="p">))</span> <span class="c1"># notice that we don&#39;t have noise here, since any point that we consider is a stop location and hence has been already pre filtered by run_infostop (min_samples = 1 =&gt; no label =-1)</span>
+              <span class="n">df</span><span class="p">[</span><span class="s1">&#39;cluster_label&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">db</span><span class="o">.</span><span class="n">labels_</span>
+        <span class="k">else</span><span class="p">:</span>
+          <span class="n">df</span><span class="p">[</span><span class="s1">&#39;cluster_label&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span>
+        <span class="k">return</span> <span class="n">df</span>
+        <span class="c1">#  pass</span>
+
+    <span class="n">schema</span> <span class="o">=</span> <span class="n">StructType</span><span class="p">([</span>
+        <span class="n">StructField</span><span class="p">(</span><span class="s2">&quot;t_start&quot;</span><span class="p">,</span> <span class="n">FloatType</span><span class="p">(),</span> <span class="kc">False</span><span class="p">),</span>
+        <span class="n">StructField</span><span class="p">(</span><span class="s2">&quot;t_end&quot;</span><span class="p">,</span> <span class="n">FloatType</span><span class="p">(),</span> <span class="kc">False</span><span class="p">),</span>
+        <span class="n">StructField</span><span class="p">(</span><span class="s2">&quot;latitude&quot;</span><span class="p">,</span> <span class="n">FloatType</span><span class="p">(),</span> <span class="kc">False</span><span class="p">),</span>
+        <span class="n">StructField</span><span class="p">(</span><span class="s2">&quot;longitude&quot;</span><span class="p">,</span> <span class="n">FloatType</span><span class="p">(),</span> <span class="kc">False</span><span class="p">),</span>
+        <span class="n">StructField</span><span class="p">(</span><span class="s2">&quot;median_accuracy&quot;</span><span class="p">,</span> <span class="n">FloatType</span><span class="p">(),</span> <span class="kc">False</span><span class="p">),</span>
+        <span class="n">StructField</span><span class="p">(</span><span class="s2">&quot;total_pings_stop&quot;</span><span class="p">,</span> <span class="n">IntegerType</span><span class="p">(),</span> <span class="kc">False</span><span class="p">),</span>
+        <span class="n">StructField</span><span class="p">(</span><span class="s2">&quot;uid&quot;</span><span class="p">,</span> <span class="n">StringType</span><span class="p">(),</span> <span class="kc">False</span><span class="p">),</span>
+        <span class="n">StructField</span><span class="p">(</span><span class="s2">&quot;cluster_label&quot;</span><span class="p">,</span> <span class="n">IntegerType</span><span class="p">(),</span> <span class="kc">False</span><span class="p">)</span>
+    <span class="p">])</span>
+
+    <span class="k">return</span> <span class="n">df</span><span class="o">.</span><span class="n">orderBy</span><span class="p">(</span><span class="n">ordered_col</span><span class="p">)</span><span class="o">.</span><span class="n">groupBy</span><span class="p">(</span><span class="n">group_col</span><span class="p">)</span><span class="o">.</span><span class="n">applyInPandas</span><span class="p">(</span><span class="n">pandas_stop_location</span><span class="p">,</span> <span class="n">schema</span><span class="o">=</span><span class="n">schema</span><span class="p">)</span></div>
+
+<span class="k">def</span> <span class="nf">_to_unix_int</span><span class="p">(</span><span class="n">dt</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;Converts a datetime object to UNIX Time</span>
+
+<span class="sd">    Args:</span>
+<span class="sd">        dt (datetime): Datetime object</span>
+
+<span class="sd">    Returns:</span>
+<span class="sd">        int: UNIX Time</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">return</span> <span class="nb">int</span><span class="p">(</span><span class="n">dt</span><span class="o">.</span><span class="n">timestamp</span><span class="p">())</span>
+
+<div class="viewcode-block" id="create_date_list"><a class="viewcode-back" href="../../wbgps.html#wbgps.stops.create_date_list">[docs]</a><span class="k">def</span> <span class="nf">create_date_list</span><span class="p">():</span>
+    <span class="sd">&quot;&quot;&quot;Creates a list of dates</span>
+
+<span class="sd">    Returns:</span>
+<span class="sd">        Pandas Series: List of dates</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="nd">@pandas_udf</span><span class="p">(</span><span class="s1">&#39;array&lt;struct&lt;t_start:long,t_end:long&gt;&gt;&#39;</span><span class="p">,</span> <span class="n">PandasUDFType</span><span class="o">.</span><span class="n">SCALAR</span><span class="p">)</span>
+    <span class="k">def</span> <span class="nf">pandas_make_list</span><span class="p">(</span><span class="n">start</span><span class="p">:</span> <span class="n">pd</span><span class="o">.</span><span class="n">Series</span><span class="p">,</span> <span class="n">end</span><span class="p">:</span> <span class="n">pd</span><span class="o">.</span><span class="n">Series</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">pd</span><span class="o">.</span><span class="n">Series</span><span class="p">:</span>
+        <span class="c1">#  def _to_unix_int(dt):</span>
+        <span class="c1">#      return int(dt.value // 10**9)</span>
+
+        <span class="n">result</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="k">for</span> <span class="n">s</span><span class="p">,</span> <span class="n">e</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="n">start</span><span class="p">,</span> <span class="n">end</span><span class="p">):</span>
+            <span class="n">s</span> <span class="o">=</span> <span class="n">pd</span><span class="o">.</span><span class="n">to_datetime</span><span class="p">(</span><span class="n">s</span><span class="p">,</span> <span class="n">unit</span><span class="o">=</span><span class="s1">&#39;s&#39;</span><span class="p">)</span>
+            <span class="n">e</span> <span class="o">=</span> <span class="n">pd</span><span class="o">.</span><span class="n">to_datetime</span><span class="p">(</span><span class="n">e</span><span class="p">,</span> <span class="n">unit</span><span class="o">=</span><span class="s1">&#39;s&#39;</span><span class="p">)</span>
+
+            <span class="n">parts</span> <span class="o">=</span> <span class="n">pd</span><span class="o">.</span><span class="n">date_range</span><span class="p">(</span><span class="n">s</span><span class="p">,</span> <span class="n">e</span><span class="p">,</span> <span class="n">freq</span><span class="o">=</span><span class="s1">&#39;d&#39;</span><span class="p">,</span> <span class="n">normalize</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span><span class="o">.</span><span class="n">tolist</span><span class="p">()</span>
+            <span class="k">if</span> <span class="n">parts</span><span class="p">:</span>
+                <span class="c1"># Update the first timestamp</span>
+                <span class="n">parts</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">=</span> <span class="n">s</span>
+                <span class="c1"># Append the end timestamp if it is not midnight</span>
+                <span class="k">if</span> <span class="n">parts</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span> <span class="o">!=</span> <span class="n">e</span><span class="p">:</span>
+                    <span class="n">parts</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">e</span><span class="p">)</span>
+                <span class="n">unix_parts</span> <span class="o">=</span> <span class="p">[</span><span class="nb">int</span><span class="p">(</span><span class="n">x</span><span class="o">.</span><span class="n">value</span> <span class="o">//</span> <span class="mi">10</span><span class="o">**</span><span class="mi">9</span><span class="p">)</span> <span class="k">for</span> <span class="n">x</span> <span class="ow">in</span> <span class="n">parts</span><span class="p">]</span>
+                <span class="n">res</span> <span class="o">=</span> <span class="p">[(</span><span class="n">unix_parts</span><span class="p">[</span><span class="n">i</span><span class="p">],</span> <span class="n">unix_parts</span><span class="p">[</span><span class="n">i</span><span class="o">+</span><span class="mi">1</span><span class="p">])</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">unix_parts</span><span class="p">)</span> <span class="o">-</span> <span class="mi">1</span><span class="p">)]</span>
+                <span class="n">result</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">res</span><span class="p">)</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">result</span><span class="o">.</span><span class="n">append</span><span class="p">([(</span><span class="n">_to_unix_int</span><span class="p">(</span><span class="n">s</span><span class="p">),</span> <span class="n">_to_unix_int</span><span class="p">(</span><span class="n">e</span><span class="p">))])</span>
+
+        <span class="k">return</span> <span class="n">pd</span><span class="o">.</span><span class="n">Series</span><span class="p">(</span><span class="n">result</span><span class="p">)</span>
+
+    <span class="k">return</span> <span class="n">pandas_make_list</span></div>
+
+<div class="viewcode-block" id="get_stop_cluster"><a class="viewcode-back" href="../../wbgps.html#wbgps.stops.get_stop_cluster">[docs]</a><span class="k">def</span> <span class="nf">get_stop_cluster</span><span class="p">(</span><span class="n">current</span><span class="p">,</span> <span class="n">sl</span><span class="p">,</span> <span class="n">group_col</span><span class="p">,</span> <span class="n">db_scan_radius</span><span class="o">=</span><span class="mf">3.1392246115209545e-05</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;Cluster the stop locations</span>
+
+<span class="sd">    Args:</span>
+<span class="sd">        current (Data Frame): PySpark data frame with the following columns:</span>
+<span class="sd">            - latitude (float): Latitude of the ping</span>
+<span class="sd">            - longitude (float): Longitude of the ping</span>
+<span class="sd">            - epoch_time (int): Timestamp of the ping</span>
+<span class="sd">            - horizontal_accuracy (float): Accuracy of the ping</span>
+<span class="sd">            - uid (str): User id</span>
+<span class="sd">        sl (Data Frame): Output of get_stop_location. PySpark data frame with the following columns:</span>
+<span class="sd">            - t_start (int): Start timestamp of the stop location</span>
+<span class="sd">            - t_end (int): End timestamp of the stop location</span>
+<span class="sd">            - latitude (float): Latitude of the stop location</span>
+<span class="sd">            - longitude (float): Longitude of the stop location</span>
+<span class="sd">            - median_accuracy (float): Median accuracy of the stop location</span>
+<span class="sd">            - total_pings_stop (int): Number of pings in the stop location</span>
+<span class="sd">            - uid (str): User id</span>
+<span class="sd">            - cluster_label (int): Cluster label of the stop location</span>
+<span class="sd">        group_col (str): Column to group by</span>
+<span class="sd">        db_scan_radius (float, optional): Radius for dbscan algorithm. Defaults to 3.1392246115209545e-05.</span>
+
+<span class="sd">    Returns:</span>
+<span class="sd">        Data Frame: PySpark data frame with the following columns:</span>
+<span class="sd">            - user_id (str): User id</span>
+<span class="sd">            - lat (float): Latitude of the stop location</span>
+<span class="sd">            - lon (float): Longitude of the stop location</span>
+<span class="sd">            - cluster_label (int): Cluster label of the stop location</span>
+<span class="sd">            - median_accuracy (float): Median accuracy of the stop location</span>
+<span class="sd">            - total_pings_stop (int): Number of pings in the stop location</span>
+<span class="sd">            - total_duration_stop_location (int): Duration of the stop location</span>
+<span class="sd">            - t_start (int): Start timestamp of the stop location</span>
+<span class="sd">            - t_end (int): End timestamp of the stop location</span>
+<span class="sd">            - duration (int): Duration of the stop location</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="c1"># group_col = &#39;uid&#39;</span>
+    <span class="k">def</span> <span class="nf">pandas_stop_cluster</span><span class="p">(</span><span class="n">key</span><span class="p">,</span> <span class="n">data</span><span class="p">):</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">data</span><span class="o">.</span><span class="n">empty</span><span class="p">:</span>
+            <span class="n">db</span> <span class="o">=</span> <span class="n">DBSCAN</span><span class="p">(</span><span class="n">eps</span><span class="o">=</span><span class="n">db_scan_radius</span><span class="p">,</span> <span class="n">min_samples</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span> <span class="n">metric</span><span class="o">=</span><span class="s1">&#39;haversine&#39;</span><span class="p">,</span>
+                        <span class="n">algorithm</span><span class="o">=</span><span class="s1">&#39;ball_tree&#39;</span><span class="p">)</span><span class="o">.</span><span class="n">fit</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">radians</span><span class="p">(</span><span class="n">data</span><span class="p">[[</span><span class="s1">&#39;latitude&#39;</span><span class="p">,</span>
+                                                                    <span class="s1">&#39;longitude&#39;</span><span class="p">]]</span><span class="o">.</span><span class="n">values</span><span class="p">))</span>
+            <span class="n">data</span><span class="p">[</span><span class="s1">&#39;cluster_label&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">db</span><span class="o">.</span><span class="n">labels_</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">data</span><span class="p">[</span><span class="s1">&#39;cluster_label&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span>
+        <span class="k">return</span> <span class="n">data</span>
+
+    <span class="n">schema_cluster_df</span> <span class="o">=</span> <span class="n">StructType</span><span class="p">([</span>
+        <span class="n">StructField</span><span class="p">(</span><span class="s1">&#39;user_id&#39;</span><span class="p">,</span> <span class="n">StringType</span><span class="p">(),</span> <span class="kc">False</span><span class="p">),</span>
+        <span class="n">StructField</span><span class="p">(</span><span class="s1">&#39;lat&#39;</span><span class="p">,</span> <span class="n">DoubleType</span><span class="p">(),</span> <span class="kc">False</span><span class="p">),</span>
+        <span class="n">StructField</span><span class="p">(</span><span class="s1">&#39;lon&#39;</span><span class="p">,</span> <span class="n">DoubleType</span><span class="p">(),</span> <span class="kc">False</span><span class="p">),</span>
+        <span class="n">StructField</span><span class="p">(</span><span class="s1">&#39;cluster_label&#39;</span><span class="p">,</span> <span class="n">LongType</span><span class="p">(),</span> <span class="kc">True</span><span class="p">),</span>
+        <span class="n">StructField</span><span class="p">(</span><span class="s1">&#39;median_accuracy&#39;</span><span class="p">,</span> <span class="n">DoubleType</span><span class="p">(),</span> <span class="kc">True</span><span class="p">),</span>
+        <span class="n">StructField</span><span class="p">(</span><span class="s1">&#39;total_pings_stop&#39;</span><span class="p">,</span> <span class="n">LongType</span><span class="p">(),</span> <span class="kc">True</span><span class="p">),</span>
+        <span class="n">StructField</span><span class="p">(</span><span class="s1">&#39;total_duration_stop_location&#39;</span><span class="p">,</span> <span class="n">LongType</span><span class="p">(),</span> <span class="kc">True</span><span class="p">),</span>
+        <span class="n">StructField</span><span class="p">(</span><span class="s1">&#39;t_start&#39;</span><span class="p">,</span> <span class="n">LongType</span><span class="p">(),</span> <span class="kc">False</span><span class="p">),</span>
+        <span class="n">StructField</span><span class="p">(</span><span class="s1">&#39;t_end&#39;</span><span class="p">,</span> <span class="n">LongType</span><span class="p">(),</span> <span class="kc">False</span><span class="p">),</span>
+        <span class="n">StructField</span><span class="p">(</span><span class="s1">&#39;duration&#39;</span><span class="p">,</span> <span class="n">LongType</span><span class="p">(),</span> <span class="kc">False</span><span class="p">),</span>
+    <span class="p">])</span>
+
+    <span class="n">df</span> <span class="o">=</span> <span class="n">current</span><span class="o">.</span><span class="n">union</span><span class="p">(</span><span class="n">sl</span><span class="p">)</span>
+
+    <span class="k">return</span> <span class="n">df</span><span class="o">.</span><span class="n">groupBy</span><span class="p">(</span><span class="n">group_col</span><span class="p">)</span><span class="o">.</span><span class="n">applyInPandas</span><span class="p">(</span><span class="n">pandas_stop_cluster</span><span class="p">,</span> <span class="n">schema</span><span class="o">=</span><span class="n">schema_cluster_df</span><span class="p">)</span></div>
+
+</pre></div>
+
+           </div>
+          </div>
+          <footer>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2023, Ollin D. Langle-Chimal.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

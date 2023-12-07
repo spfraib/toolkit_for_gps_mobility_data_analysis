@@ -1,0 +1,595 @@
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" >
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>wbgps.labeling &mdash; wbgps 0.0.1 documentation</title>
+      <link rel="stylesheet" href="../../_static/pygments.css" type="text/css" />
+      <link rel="stylesheet" href="../../_static/css/theme.css" type="text/css" />
+  <!--[if lt IE 9]>
+    <script src="../../_static/js/html5shiv.min.js"></script>
+  <![endif]-->
+  
+        <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.6.0/jquery.min.js"></script>
+        <script data-url_root="../../" id="documentation_options" src="../../_static/documentation_options.js"></script>
+        <script src="../../_static/doctools.js"></script>
+        <script src="../../_static/sphinx_highlight.js"></script>
+    <script src="../../_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="../../genindex.html" />
+    <link rel="search" title="Search" href="../../search.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="../../index.html" class="icon icon-home">
+            wbgps
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">Contents:</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../intro.html">Introduction</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../modules.html">wbgps</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../wbgps.html">wbgps package</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../../index.html">wbgps</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="../../index.html" class="icon icon-home" aria-label="Home"></a></li>
+          <li class="breadcrumb-item"><a href="../index.html">Module code</a></li>
+      <li class="breadcrumb-item active">wbgps.labeling</li>
+      <li class="wy-breadcrumbs-aside">
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <h1>Source code for wbgps.labeling</h1><div class="highlight"><pre>
+<span></span><span class="kn">import</span> <span class="nn">pyspark.sql.functions</span> <span class="k">as</span> <span class="nn">F</span>
+<span class="kn">from</span> <span class="nn">pyspark.sql.functions</span> <span class="kn">import</span> <span class="n">pandas_udf</span><span class="p">,</span> <span class="n">PandasUDFType</span><span class="p">,</span> <span class="n">col</span><span class="p">,</span> <span class="n">lit</span><span class="p">,</span> <span class="n">lag</span><span class="p">,</span> <span class="n">countDistinct</span><span class="p">,</span> <span class="n">to_timestamp</span>
+<span class="kn">from</span> <span class="nn">pyspark.sql.types</span> <span class="kn">import</span> <span class="n">StructType</span><span class="p">,</span> <span class="n">StructField</span><span class="p">,</span> <span class="n">LongType</span><span class="p">,</span> <span class="n">StringType</span><span class="p">,</span> <span class="n">IntegerType</span><span class="p">,</span> <span class="n">TimestampType</span><span class="p">,</span> <span class="n">DoubleType</span>
+<span class="kn">import</span> <span class="nn">pandas</span> <span class="k">as</span> <span class="nn">pd</span>
+<span class="kn">from</span> <span class="nn">datetime</span> <span class="kn">import</span> <span class="n">timedelta</span>
+
+
+<div class="viewcode-block" id="time_at_work"><a class="viewcode-back" href="../../wbgps.html#wbgps.labeling.time_at_work">[docs]</a><span class="k">def</span> <span class="nf">time_at_work</span><span class="p">(</span><span class="n">user_tmp</span><span class="p">,</span> <span class="n">date_trunc</span><span class="p">,</span> <span class="n">cluster_label</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;minimum fraction of &#39;duration&#39; per day that you don&#39;t spend in your home_location for each cluster stop -&gt; [10%,20%,30%]</span>
+<span class="sd">       if user_tmp[user_tmp.location_type !=&#39;H&#39;].empty:</span>
+<span class="sd">       return np.NaN</span>
+<span class="sd">    Args:</span>
+<span class="sd">        x (_type_): _description_</span>
+<span class="sd">        user_tmp (DataFrame): DataFrame containing all the stops of a user. It is filtered by cluster_label and date_trunc. Needs the columns &#39;duration&#39; and &#39;cluster_label&#39;</span>
+
+<span class="sd">    Returns:</span>
+<span class="sd">        Float:  time_at_work / time_not_at_home</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">time_not_at_home</span> <span class="o">=</span> <span class="n">user_tmp</span><span class="p">[</span><span class="n">user_tmp</span><span class="o">.</span><span class="n">date_trunc</span> <span class="o">==</span>
+                                <span class="n">date_trunc</span><span class="p">][</span><span class="s1">&#39;duration&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">sum</span><span class="p">()</span>
+    <span class="n">time_at_work</span> <span class="o">=</span> <span class="n">user_tmp</span><span class="p">[(</span><span class="n">user_tmp</span><span class="p">[</span><span class="s1">&#39;cluster_label&#39;</span><span class="p">]</span> <span class="o">==</span> <span class="n">cluster_label</span><span class="p">)</span> <span class="o">&amp;</span> <span class="p">(</span>
+            <span class="n">user_tmp</span><span class="o">.</span><span class="n">date_trunc</span> <span class="o">==</span> <span class="n">date_trunc</span><span class="p">)][</span><span class="s1">&#39;duration&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">sum</span><span class="p">()</span>
+    <span class="k">return</span> <span class="n">time_at_work</span> <span class="o">/</span> <span class="n">time_not_at_home</span></div>
+
+
+<div class="viewcode-block" id="days_at_work_dynamic"><a class="viewcode-back" href="../../wbgps.html#wbgps.labeling.days_at_work_dynamic">[docs]</a><span class="k">def</span> <span class="nf">days_at_work_dynamic</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">user_tmp</span><span class="p">,</span> <span class="n">work_period_window</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;_summary_</span>
+
+<span class="sd">    Args:</span>
+<span class="sd">        x (_type_): _description_</span>
+<span class="sd">        user_tmp (_type_): _description_</span>
+<span class="sd">        work_period_window (_type_): _description_</span>
+
+<span class="sd">    Returns:</span>
+<span class="sd">        _type_: _description_</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="c1"># 2. minimum fraction of observed days of activity -&gt; [20%,30%,40%]</span>
+    <span class="n">tmpdf</span> <span class="o">=</span> <span class="n">user_tmp</span><span class="p">[(</span><span class="n">user_tmp</span><span class="o">.</span><span class="n">date_trunc</span> <span class="o">&gt;=</span> <span class="n">x</span><span class="o">.</span><span class="n">date_trunc</span> <span class="o">-</span> <span class="n">timedelta</span><span class="p">(</span>
+        <span class="n">days</span><span class="o">=</span><span class="n">work_period_window</span><span class="p">))</span> <span class="o">&amp;</span> <span class="p">(</span><span class="n">user_tmp</span><span class="o">.</span><span class="n">date_trunc</span> <span class="o">&lt;=</span> <span class="n">x</span><span class="o">.</span><span class="n">date_trunc</span><span class="p">)]</span>
+    <span class="n">active_days</span> <span class="o">=</span> <span class="n">tmpdf</span><span class="p">[</span><span class="s1">&#39;date_trunc&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">nunique</span><span class="p">()</span>
+
+    <span class="n">tmpdf</span> <span class="o">=</span> <span class="n">tmpdf</span><span class="p">[(</span><span class="n">user_tmp</span><span class="o">.</span><span class="n">cluster_label</span> <span class="o">==</span> <span class="n">x</span><span class="o">.</span><span class="n">cluster_label</span><span class="p">)]</span>
+    <span class="n">work_days</span> <span class="o">=</span> <span class="n">tmpdf</span><span class="p">[</span><span class="s1">&#39;date_trunc&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">nunique</span><span class="p">()</span>
+
+    <span class="k">return</span> <span class="n">work_days</span> <span class="o">/</span> <span class="n">active_days</span></div>
+
+
+<div class="viewcode-block" id="days_at_home_dynamic"><a class="viewcode-back" href="../../wbgps.html#wbgps.labeling.days_at_home_dynamic">[docs]</a><span class="k">def</span> <span class="nf">days_at_home_dynamic</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">user_tmp</span><span class="p">,</span> <span class="n">home_period_window</span><span class="p">):</span>
+    <span class="c1"># 2. minimum fraction of observed days of activity -&gt; [20%,30%,40%]</span>
+    <span class="n">tmpdf</span> <span class="o">=</span> <span class="n">user_tmp</span><span class="p">[(</span><span class="n">user_tmp</span><span class="o">.</span><span class="n">date_trunc</span> <span class="o">&gt;=</span> <span class="n">x</span><span class="o">.</span><span class="n">date_trunc</span> <span class="o">-</span> <span class="n">timedelta</span><span class="p">(</span>
+        <span class="n">days</span><span class="o">=</span><span class="n">home_period_window</span><span class="p">))</span> <span class="o">&amp;</span> <span class="p">(</span><span class="n">user_tmp</span><span class="o">.</span><span class="n">date_trunc</span> <span class="o">&lt;=</span> <span class="n">x</span><span class="o">.</span><span class="n">date_trunc</span><span class="p">)]</span>
+    <span class="n">active_days</span> <span class="o">=</span> <span class="n">tmpdf</span><span class="p">[</span><span class="s1">&#39;date_trunc&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">nunique</span><span class="p">()</span>
+
+    <span class="n">tmpdf</span> <span class="o">=</span> <span class="n">tmpdf</span><span class="p">[(</span><span class="n">user_tmp</span><span class="o">.</span><span class="n">cluster_label</span> <span class="o">==</span> <span class="n">x</span><span class="o">.</span><span class="n">cluster_label</span><span class="p">)]</span>
+    <span class="n">home_days</span> <span class="o">=</span> <span class="n">tmpdf</span><span class="p">[</span><span class="s1">&#39;date_trunc&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">nunique</span><span class="p">()</span>
+
+    <span class="k">return</span> <span class="n">home_days</span> <span class="o">/</span> <span class="n">active_days</span></div>
+
+
+
+<span class="n">schema_df</span> <span class="o">=</span> <span class="n">StructType</span><span class="p">([</span>
+    <span class="n">StructField</span><span class="p">(</span><span class="s1">&#39;user_id&#39;</span><span class="p">,</span> <span class="n">StringType</span><span class="p">(),</span> <span class="kc">False</span><span class="p">),</span>
+    <span class="n">StructField</span><span class="p">(</span><span class="s1">&#39;t_start&#39;</span><span class="p">,</span> <span class="n">LongType</span><span class="p">(),</span> <span class="kc">False</span><span class="p">),</span>
+    <span class="n">StructField</span><span class="p">(</span><span class="s1">&#39;t_end&#39;</span><span class="p">,</span> <span class="n">LongType</span><span class="p">(),</span> <span class="kc">False</span><span class="p">),</span>
+    <span class="n">StructField</span><span class="p">(</span><span class="s1">&#39;duration&#39;</span><span class="p">,</span> <span class="n">LongType</span><span class="p">(),</span> <span class="kc">False</span><span class="p">),</span>
+    <span class="n">StructField</span><span class="p">(</span><span class="s1">&#39;lat&#39;</span><span class="p">,</span> <span class="n">DoubleType</span><span class="p">(),</span> <span class="kc">False</span><span class="p">),</span>
+    <span class="n">StructField</span><span class="p">(</span><span class="s1">&#39;lon&#39;</span><span class="p">,</span> <span class="n">DoubleType</span><span class="p">(),</span> <span class="kc">False</span><span class="p">),</span>
+    <span class="n">StructField</span><span class="p">(</span><span class="s1">&#39;total_duration_stop_location&#39;</span><span class="p">,</span> <span class="n">LongType</span><span class="p">(),</span> <span class="kc">False</span><span class="p">),</span>
+    <span class="n">StructField</span><span class="p">(</span><span class="s1">&#39;total_pings_stop&#39;</span><span class="p">,</span> <span class="n">LongType</span><span class="p">(),</span> <span class="kc">False</span><span class="p">),</span>
+    <span class="n">StructField</span><span class="p">(</span><span class="s1">&#39;cluster_label&#39;</span><span class="p">,</span> <span class="n">LongType</span><span class="p">(),</span> <span class="kc">False</span><span class="p">),</span>
+    <span class="n">StructField</span><span class="p">(</span><span class="s1">&#39;median_accuracy&#39;</span><span class="p">,</span> <span class="n">DoubleType</span><span class="p">(),</span> <span class="kc">False</span><span class="p">),</span>
+    <span class="n">StructField</span><span class="p">(</span><span class="s1">&#39;location_type&#39;</span><span class="p">,</span> <span class="n">StringType</span><span class="p">(),</span> <span class="kc">True</span><span class="p">),</span>
+    <span class="n">StructField</span><span class="p">(</span><span class="s1">&#39;home_label&#39;</span><span class="p">,</span> <span class="n">LongType</span><span class="p">(),</span> <span class="kc">True</span><span class="p">),</span>
+    <span class="n">StructField</span><span class="p">(</span><span class="s1">&#39;work_label&#39;</span><span class="p">,</span> <span class="n">LongType</span><span class="p">(),</span> <span class="kc">True</span><span class="p">),</span>
+    <span class="n">StructField</span><span class="p">(</span><span class="s1">&#39;geom_id&#39;</span><span class="p">,</span> <span class="n">StringType</span><span class="p">(),</span> <span class="kc">False</span><span class="p">),</span>
+    <span class="n">StructField</span><span class="p">(</span><span class="s1">&#39;date&#39;</span><span class="p">,</span> <span class="n">TimestampType</span><span class="p">(),</span> <span class="kc">True</span><span class="p">),</span>
+    <span class="n">StructField</span><span class="p">(</span><span class="s1">&#39;t_start_hour&#39;</span><span class="p">,</span> <span class="n">IntegerType</span><span class="p">(),</span> <span class="kc">True</span><span class="p">),</span>
+    <span class="n">StructField</span><span class="p">(</span><span class="s1">&#39;t_end_hour&#39;</span><span class="p">,</span> <span class="n">IntegerType</span><span class="p">(),</span> <span class="kc">True</span><span class="p">),</span>
+    <span class="n">StructField</span><span class="p">(</span><span class="s2">&quot;date_trunc&quot;</span><span class="p">,</span> <span class="n">TimestampType</span><span class="p">(),</span> <span class="kc">True</span><span class="p">)</span>
+<span class="p">])</span>
+
+
+<div class="viewcode-block" id="get_durations"><a class="viewcode-back" href="../../wbgps.html#wbgps.labeling.get_durations">[docs]</a><span class="k">def</span> <span class="nf">get_durations</span><span class="p">(</span><span class="n">durations</span><span class="p">,</span> <span class="n">start_hour_day</span><span class="p">,</span> <span class="n">end_hour_day</span><span class="p">):</span>
+    <span class="n">durations</span> <span class="o">=</span> <span class="p">(</span><span class="n">durations</span>
+                 <span class="o">.</span><span class="n">withColumn</span><span class="p">(</span><span class="s1">&#39;hour&#39;</span><span class="p">,</span> <span class="n">F</span><span class="o">.</span><span class="n">hour</span><span class="p">(</span><span class="s1">&#39;date&#39;</span><span class="p">))</span>
+                 <span class="o">.</span><span class="n">withColumn</span><span class="p">(</span><span class="s1">&#39;day_night&#39;</span><span class="p">,</span> <span class="n">F</span><span class="o">.</span><span class="n">when</span><span class="p">((</span><span class="n">col</span><span class="p">(</span><span class="s1">&#39;hour&#39;</span><span class="p">)</span> <span class="o">&gt;=</span> <span class="n">start_hour_day</span><span class="p">)</span> <span class="o">&amp;</span> <span class="p">(</span><span class="n">col</span><span class="p">(</span><span class="s1">&#39;hour&#39;</span><span class="p">)</span> <span class="o">&lt;</span> <span class="n">end_hour_day</span><span class="p">),</span> <span class="s1">&#39;day&#39;</span><span class="p">)</span>
+                             <span class="o">.</span><span class="n">when</span><span class="p">((</span><span class="n">col</span><span class="p">(</span><span class="s1">&#39;hour&#39;</span><span class="p">)</span> <span class="o">&lt;</span> <span class="n">start_hour_day</span><span class="p">)</span> <span class="o">|</span> <span class="p">(</span><span class="n">col</span><span class="p">(</span><span class="s1">&#39;hour&#39;</span><span class="p">)</span> <span class="o">&gt;=</span> <span class="n">end_hour_day</span><span class="p">),</span> <span class="s1">&#39;night&#39;</span><span class="p">)</span>
+                             <span class="o">.</span><span class="n">otherwise</span><span class="p">(</span><span class="kc">None</span><span class="p">))</span>  <span class="c1"># stops that cross day/night boundaries</span>
+                 <span class="o">.</span><span class="n">select</span><span class="p">(</span><span class="s1">&#39;user_id&#39;</span><span class="p">,</span> <span class="s1">&#39;date_trunc&#39;</span><span class="p">,</span> <span class="s1">&#39;day_night&#39;</span><span class="p">,</span> <span class="s1">&#39;location_type&#39;</span><span class="p">,</span> <span class="s1">&#39;duration&#39;</span><span class="p">))</span>
+    <span class="n">total_durations</span> <span class="o">=</span> <span class="n">durations</span><span class="o">.</span><span class="n">groupby</span><span class="p">(</span><span class="s1">&#39;date_trunc&#39;</span><span class="p">,</span> <span class="s1">&#39;user_id&#39;</span><span class="p">)</span><span class="o">.</span><span class="n">agg</span><span class="p">(</span>
+        <span class="n">F</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="s1">&#39;duration&#39;</span><span class="p">)</span><span class="o">.</span><span class="n">alias</span><span class="p">(</span><span class="s1">&#39;total_duration&#39;</span><span class="p">))</span>
+    <span class="n">durations</span> <span class="o">=</span> <span class="n">durations</span><span class="o">.</span><span class="n">groupby</span><span class="p">(</span><span class="s1">&#39;date_trunc&#39;</span><span class="p">,</span> <span class="s1">&#39;day_night&#39;</span><span class="p">,</span> <span class="s1">&#39;user_id&#39;</span><span class="p">)</span><span class="o">.</span><span class="n">pivot</span><span class="p">(</span>
+        <span class="s1">&#39;location_type&#39;</span><span class="p">)</span><span class="o">.</span><span class="n">agg</span><span class="p">(</span><span class="n">F</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="s1">&#39;duration&#39;</span><span class="p">)</span><span class="o">.</span><span class="n">alias</span><span class="p">(</span><span class="s1">&#39;duration&#39;</span><span class="p">))</span>
+    <span class="n">durations</span> <span class="o">=</span> <span class="n">durations</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">total_durations</span><span class="p">,</span> <span class="n">on</span><span class="o">=</span><span class="p">[</span><span class="s1">&#39;date_trunc&#39;</span><span class="p">,</span> <span class="s1">&#39;user_id&#39;</span><span class="p">])</span>
+    <span class="n">durations</span> <span class="o">=</span> <span class="n">durations</span><span class="o">.</span><span class="n">withColumn</span><span class="p">(</span><span class="s1">&#39;absolute_H&#39;</span><span class="p">,</span> <span class="n">col</span><span class="p">(</span><span class="s1">&#39;H&#39;</span><span class="p">))</span>
+    <span class="n">durations</span> <span class="o">=</span> <span class="n">durations</span><span class="o">.</span><span class="n">withColumn</span><span class="p">(</span><span class="s1">&#39;absolute_W&#39;</span><span class="p">,</span> <span class="n">col</span><span class="p">(</span><span class="s1">&#39;W&#39;</span><span class="p">))</span>
+    <span class="n">durations</span> <span class="o">=</span> <span class="n">durations</span><span class="o">.</span><span class="n">withColumn</span><span class="p">(</span><span class="s1">&#39;absolute_O&#39;</span><span class="p">,</span> <span class="n">col</span><span class="p">(</span><span class="s1">&#39;O&#39;</span><span class="p">))</span>
+    <span class="n">durations</span> <span class="o">=</span> <span class="n">durations</span><span class="o">.</span><span class="n">withColumn</span><span class="p">(</span><span class="s1">&#39;H&#39;</span><span class="p">,</span> <span class="n">col</span><span class="p">(</span><span class="s1">&#39;H&#39;</span><span class="p">)</span> <span class="o">/</span> <span class="n">col</span><span class="p">(</span><span class="s1">&#39;total_duration&#39;</span><span class="p">))</span>
+    <span class="n">durations</span> <span class="o">=</span> <span class="n">durations</span><span class="o">.</span><span class="n">withColumn</span><span class="p">(</span><span class="s1">&#39;W&#39;</span><span class="p">,</span> <span class="n">col</span><span class="p">(</span><span class="s1">&#39;W&#39;</span><span class="p">)</span> <span class="o">/</span> <span class="n">col</span><span class="p">(</span><span class="s1">&#39;total_duration&#39;</span><span class="p">))</span>
+    <span class="n">durations</span> <span class="o">=</span> <span class="n">durations</span><span class="o">.</span><span class="n">withColumn</span><span class="p">(</span>
+        <span class="s1">&#39;O&#39;</span><span class="p">,</span> <span class="n">col</span><span class="p">(</span><span class="s1">&#39;O&#39;</span><span class="p">)</span> <span class="o">/</span> <span class="n">col</span><span class="p">(</span><span class="s1">&#39;total_duration&#39;</span><span class="p">))</span><span class="o">.</span><span class="n">drop</span><span class="p">(</span><span class="s1">&#39;total_duration&#39;</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">durations</span></div>
+
+
+<div class="viewcode-block" id="home_rolling_on_date"><a class="viewcode-back" href="../../wbgps.html#wbgps.labeling.home_rolling_on_date">[docs]</a><span class="k">def</span> <span class="nf">home_rolling_on_date</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">home_period_window</span><span class="p">,</span> <span class="n">min_periods_over_window</span><span class="p">):</span>
+    <span class="c1"># the output dataframe will have as index the last date of the window and consider the previous &quot;c.home_period_window&quot; days to compute the window. Notice that this will be biased for the first c.home_period_window</span>
+    <span class="n">x</span> <span class="o">=</span> <span class="n">x</span><span class="o">.</span><span class="n">sort_values</span><span class="p">(</span><span class="s1">&#39;date_trunc&#39;</span><span class="p">)</span>
+    <span class="n">x</span> <span class="o">=</span> <span class="n">x</span><span class="o">.</span><span class="n">set_index</span><span class="p">(</span><span class="s1">&#39;date_trunc&#39;</span><span class="p">)</span>
+    <span class="n">tmp</span> <span class="o">=</span> <span class="n">x</span><span class="p">[[</span><span class="s1">&#39;duration&#39;</span><span class="p">,</span> <span class="s1">&#39;total_pings_stop&#39;</span><span class="p">]]</span><span class="o">.</span><span class="n">rolling</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;</span><span class="si">{</span><span class="n">home_period_window</span><span class="si">}</span><span class="s1">D&#39;</span><span class="p">,</span> <span class="n">min_periods</span><span class="o">=</span><span class="nb">int</span><span class="p">(</span>
+        <span class="n">min_periods_over_window</span> <span class="o">*</span> <span class="n">home_period_window</span><span class="p">))</span><span class="o">.</span><span class="n">sum</span><span class="p">()</span>
+    <span class="n">tmp</span><span class="p">[</span><span class="s1">&#39;days_count&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">x</span><span class="p">[</span><span class="s1">&#39;duration&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">rolling</span><span class="p">(</span>
+        <span class="sa">f</span><span class="s1">&#39;</span><span class="si">{</span><span class="n">home_period_window</span><span class="si">}</span><span class="s1">D&#39;</span><span class="p">)</span><span class="o">.</span><span class="n">count</span><span class="p">()</span>
+
+    <span class="k">return</span> <span class="n">tmp</span></div>
+
+
+<div class="viewcode-block" id="initialize_user_df"><a class="viewcode-back" href="../../wbgps.html#wbgps.labeling.initialize_user_df">[docs]</a><span class="k">def</span> <span class="nf">initialize_user_df</span><span class="p">(</span><span class="n">user_df</span><span class="p">):</span>
+    <span class="n">user_df</span><span class="p">[</span><span class="s1">&#39;location_type&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="s1">&#39;O&#39;</span>
+    <span class="n">user_df</span><span class="p">[</span><span class="s1">&#39;home_label&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="o">-</span><span class="mi">1</span>
+    <span class="n">user_df</span><span class="p">[</span><span class="s1">&#39;work_label&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="o">-</span><span class="mi">1</span>
+    <span class="k">return</span> <span class="n">user_df</span></div>
+
+<div class="viewcode-block" id="get_home_tmp"><a class="viewcode-back" href="../../wbgps.html#wbgps.labeling.get_home_tmp">[docs]</a><span class="k">def</span> <span class="nf">get_home_tmp</span><span class="p">(</span><span class="n">user_df</span><span class="p">,</span> <span class="n">start_hour_day</span><span class="p">,</span> <span class="n">end_hour_day</span><span class="p">):</span>
+    <span class="k">return</span> <span class="n">user_df</span><span class="p">[(</span><span class="n">user_df</span><span class="p">[</span><span class="s1">&#39;t_start_hour&#39;</span><span class="p">]</span> <span class="o">&gt;=</span> <span class="n">end_hour_day</span><span class="p">)</span> <span class="o">|</span> <span class="p">(</span><span class="n">user_df</span><span class="p">[</span><span class="s1">&#39;t_end_hour&#39;</span><span class="p">]</span> <span class="o">&lt;=</span> <span class="n">start_hour_day</span><span class="p">)]</span><span class="o">.</span><span class="n">copy</span><span class="p">()</span></div>
+
+<div class="viewcode-block" id="compute_cumulative_duration"><a class="viewcode-back" href="../../wbgps.html#wbgps.labeling.compute_cumulative_duration">[docs]</a><span class="k">def</span> <span class="nf">compute_cumulative_duration</span><span class="p">(</span><span class="n">home_tmp</span><span class="p">,</span> <span class="n">home_period_window</span><span class="p">,</span> <span class="n">min_periods_over_window</span><span class="p">,</span> <span class="n">min_pings_home_cluster_label</span><span class="p">):</span>
+    <span class="n">home_tmp</span> <span class="o">=</span> <span class="n">home_tmp</span><span class="p">[[</span><span class="s1">&#39;cluster_label&#39;</span><span class="p">,</span> <span class="s1">&#39;date_trunc&#39;</span><span class="p">,</span> <span class="s1">&#39;duration&#39;</span><span class="p">,</span> <span class="s1">&#39;total_pings_stop&#39;</span><span class="p">]]</span><span class="o">.</span><span class="n">groupby</span><span class="p">([</span><span class="s1">&#39;cluster_label&#39;</span><span class="p">,</span> <span class="s1">&#39;date_trunc&#39;</span><span class="p">])</span><span class="o">.</span><span class="n">sum</span><span class="p">()</span><span class="o">.</span><span class="n">reset_index</span><span class="p">()</span><span class="o">.</span><span class="n">sort_values</span><span class="p">(</span><span class="s1">&#39;date_trunc&#39;</span><span class="p">)</span>
+    <span class="n">home_tmp</span> <span class="o">=</span> <span class="n">home_tmp</span><span class="o">.</span><span class="n">merge</span><span class="p">(</span><span class="n">home_tmp</span><span class="p">[[</span><span class="s1">&#39;date_trunc&#39;</span><span class="p">,</span> <span class="s1">&#39;cluster_label&#39;</span><span class="p">,</span> <span class="s1">&#39;duration&#39;</span><span class="p">,</span> <span class="s1">&#39;total_pings_stop&#39;</span><span class="p">]]</span><span class="o">.</span><span class="n">groupby</span><span class="p">([</span><span class="s1">&#39;cluster_label&#39;</span><span class="p">])</span><span class="o">.</span><span class="n">apply</span><span class="p">(</span><span class="n">home_rolling_on_date</span><span class="p">,</span> <span class="n">home_period_window</span><span class="p">,</span> <span class="n">min_periods_over_window</span><span class="p">)</span><span class="o">.</span><span class="n">reset_index</span><span class="p">(),</span> <span class="n">on</span><span class="o">=</span><span class="p">[</span><span class="s1">&#39;date_trunc&#39;</span><span class="p">,</span> <span class="s1">&#39;cluster_label&#39;</span><span class="p">],</span> <span class="n">suffixes</span><span class="o">=</span><span class="p">(</span><span class="s1">&#39;&#39;</span><span class="p">,</span> <span class="s1">&#39;_cum&#39;</span><span class="p">))</span>
+    <span class="n">home_tmp</span> <span class="o">=</span> <span class="n">home_tmp</span><span class="p">[</span><span class="n">home_tmp</span><span class="o">.</span><span class="n">total_pings_stop_cum</span> <span class="o">&gt;</span> <span class="n">min_pings_home_cluster_label</span><span class="p">]</span><span class="o">.</span><span class="n">drop</span><span class="p">(</span><span class="s1">&#39;total_pings_stop_cum&#39;</span><span class="p">,</span> <span class="n">axis</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">home_tmp</span><span class="o">.</span><span class="n">dropna</span><span class="p">(</span><span class="n">subset</span><span class="o">=</span><span class="p">[</span><span class="s1">&#39;duration_cum&#39;</span><span class="p">])</span></div>
+
+<div class="viewcode-block" id="add_home_label"><a class="viewcode-back" href="../../wbgps.html#wbgps.labeling.add_home_label">[docs]</a><span class="k">def</span> <span class="nf">add_home_label</span><span class="p">(</span><span class="n">user_df</span><span class="p">,</span> <span class="n">home_tmp</span><span class="p">):</span>
+    <span class="n">date_cluster</span> <span class="o">=</span> <span class="n">home_tmp</span><span class="o">.</span><span class="n">drop_duplicates</span><span class="p">([</span><span class="s1">&#39;cluster_label&#39;</span><span class="p">,</span> <span class="s1">&#39;date_trunc&#39;</span><span class="p">])[[</span><span class="s1">&#39;date_trunc&#39;</span><span class="p">,</span> <span class="s1">&#39;cluster_label&#39;</span><span class="p">]]</span><span class="o">.</span><span class="n">copy</span><span class="p">()</span>
+    <span class="n">date_cluster</span> <span class="o">=</span> <span class="n">date_cluster</span><span class="o">.</span><span class="n">drop_duplicates</span><span class="p">([</span><span class="s1">&#39;date_trunc&#39;</span><span class="p">])</span>
+    <span class="n">home_label</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="nb">zip</span><span class="p">(</span><span class="n">date_cluster</span><span class="o">.</span><span class="n">cluster_label</span><span class="p">,</span> <span class="n">date_cluster</span><span class="o">.</span><span class="n">date_trunc</span><span class="p">))</span>
+    <span class="n">idx</span> <span class="o">=</span> <span class="n">pd</span><span class="o">.</span><span class="n">MultiIndex</span><span class="o">.</span><span class="n">from_frame</span><span class="p">(</span><span class="n">user_df</span><span class="p">[[</span><span class="s1">&#39;cluster_label&#39;</span><span class="p">,</span> <span class="s1">&#39;date_trunc&#39;</span><span class="p">]])</span>
+    <span class="n">user_df</span><span class="o">.</span><span class="n">loc</span><span class="p">[</span><span class="n">idx</span><span class="o">.</span><span class="n">isin</span><span class="p">(</span><span class="n">home_label</span><span class="p">),</span> <span class="s1">&#39;home_label&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">user_df</span><span class="o">.</span><span class="n">loc</span><span class="p">[</span><span class="n">idx</span><span class="o">.</span><span class="n">isin</span><span class="p">(</span><span class="n">home_label</span><span class="p">),</span> <span class="s1">&#39;cluster_label&#39;</span><span class="p">]</span>
+    <span class="k">return</span> <span class="n">user_df</span></div>
+
+<div class="viewcode-block" id="interpolate_missing_dates"><a class="viewcode-back" href="../../wbgps.html#wbgps.labeling.interpolate_missing_dates">[docs]</a><span class="k">def</span> <span class="nf">interpolate_missing_dates</span><span class="p">(</span><span class="n">user_df</span><span class="p">,</span> <span class="n">home_tmp</span><span class="p">):</span>
+    <span class="n">first_day</span> <span class="o">=</span> <span class="n">home_tmp</span><span class="p">[</span><span class="s1">&#39;date_trunc&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">min</span><span class="p">()</span>
+    <span class="n">last_day</span> <span class="o">=</span> <span class="n">home_tmp</span><span class="p">[</span><span class="s1">&#39;date_trunc&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">max</span><span class="p">()</span>
+    <span class="n">base_dates</span> <span class="o">=</span> <span class="n">pd</span><span class="o">.</span><span class="n">date_range</span><span class="p">(</span><span class="n">start</span><span class="o">=</span><span class="n">first_day</span><span class="p">,</span> <span class="n">end</span><span class="o">=</span><span class="n">last_day</span><span class="p">)</span>
+    <span class="n">date_cluster</span> <span class="o">=</span> <span class="n">home_tmp</span><span class="o">.</span><span class="n">drop_duplicates</span><span class="p">([</span><span class="s1">&#39;cluster_label&#39;</span><span class="p">,</span> <span class="s1">&#39;date_trunc&#39;</span><span class="p">])[[</span><span class="s1">&#39;date_trunc&#39;</span><span class="p">,</span> <span class="s1">&#39;cluster_label&#39;</span><span class="p">]]</span><span class="o">.</span><span class="n">copy</span><span class="p">()</span>
+    <span class="n">date_cluster</span> <span class="o">=</span> <span class="n">date_cluster</span><span class="o">.</span><span class="n">drop_duplicates</span><span class="p">([</span><span class="s1">&#39;date_trunc&#39;</span><span class="p">])</span>
+    <span class="n">date_cluster</span> <span class="o">=</span> <span class="n">date_cluster</span><span class="o">.</span><span class="n">sort_values</span><span class="p">(</span><span class="n">by</span><span class="o">=</span><span class="s1">&#39;date_trunc&#39;</span><span class="p">)</span><span class="o">.</span><span class="n">set_index</span><span class="p">(</span><span class="s1">&#39;date_trunc&#39;</span><span class="p">)</span>
+    <span class="n">date_cluster</span> <span class="o">=</span> <span class="n">date_cluster</span><span class="o">.</span><span class="n">reindex</span><span class="p">(</span><span class="n">base_dates</span><span class="p">)</span>
+    <span class="n">date_cluster</span> <span class="o">=</span> <span class="n">date_cluster</span><span class="o">.</span><span class="n">interpolate</span><span class="p">(</span><span class="n">method</span><span class="o">=</span><span class="s1">&#39;nearest&#39;</span><span class="p">)</span><span class="o">.</span><span class="n">ffill</span><span class="p">()</span><span class="o">.</span><span class="n">bfill</span><span class="p">()</span> <span class="k">if</span> <span class="n">pd</span><span class="o">.</span><span class="n">notna</span><span class="p">(</span><span class="n">date_cluster</span><span class="p">[</span><span class="s1">&#39;cluster_label&#39;</span><span class="p">])</span><span class="o">.</span><span class="n">sum</span><span class="p">()</span> <span class="o">&gt;</span> <span class="mi">1</span> <span class="k">else</span> <span class="n">date_cluster</span><span class="o">.</span><span class="n">ffill</span><span class="p">()</span><span class="o">.</span><span class="n">bfill</span><span class="p">()</span>
+    <span class="n">date_cluster</span><span class="o">.</span><span class="n">index</span><span class="o">.</span><span class="n">name</span> <span class="o">=</span> <span class="s1">&#39;date_trunc&#39;</span>
+    <span class="n">date_cluster</span> <span class="o">=</span> <span class="n">date_cluster</span><span class="o">.</span><span class="n">reset_index</span><span class="p">()</span>
+    <span class="n">home_label</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="nb">zip</span><span class="p">(</span><span class="n">date_cluster</span><span class="o">.</span><span class="n">cluster_label</span><span class="p">,</span> <span class="n">date_cluster</span><span class="o">.</span><span class="n">date_trunc</span><span class="p">))</span>
+    <span class="n">idx</span> <span class="o">=</span> <span class="n">pd</span><span class="o">.</span><span class="n">MultiIndex</span><span class="o">.</span><span class="n">from_frame</span><span class="p">(</span><span class="n">user_df</span><span class="p">[[</span><span class="s1">&#39;cluster_label&#39;</span><span class="p">,</span> <span class="s1">&#39;date_trunc&#39;</span><span class="p">]])</span>
+    <span class="n">user_df</span><span class="o">.</span><span class="n">loc</span><span class="p">[</span><span class="n">idx</span><span class="o">.</span><span class="n">isin</span><span class="p">(</span><span class="n">home_label</span><span class="p">),</span> <span class="s1">&#39;location_type&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="s1">&#39;H&#39;</span>
+    <span class="k">return</span> <span class="n">user_df</span></div>
+
+<div class="viewcode-block" id="remove_unused_cols"><a class="viewcode-back" href="../../wbgps.html#wbgps.labeling.remove_unused_cols">[docs]</a><span class="k">def</span> <span class="nf">remove_unused_cols</span><span class="p">(</span><span class="n">df</span><span class="p">):</span>
+    <span class="k">return</span> <span class="n">df</span><span class="p">[[</span><span class="s1">&#39;uid&#39;</span><span class="p">,</span> <span class="s1">&#39;t_start&#39;</span><span class="p">,</span> <span class="s1">&#39;t_end&#39;</span><span class="p">,</span> <span class="s1">&#39;duration&#39;</span><span class="p">,</span> <span class="s1">&#39;latitude&#39;</span><span class="p">,</span> <span class="s1">&#39;longitude&#39;</span><span class="p">,</span>
+               <span class="s1">&#39;total_duration_stop_location&#39;</span><span class="p">,</span> <span class="s1">&#39;total_pings_stop&#39;</span><span class="p">,</span>
+               <span class="s1">&#39;cluster_label&#39;</span><span class="p">,</span> <span class="s1">&#39;median_accuracy&#39;</span><span class="p">,</span> <span class="s1">&#39;location_type&#39;</span><span class="p">,</span>
+               <span class="s1">&#39;home_label&#39;</span><span class="p">,</span> <span class="s1">&#39;work_label&#39;</span><span class="p">,</span> <span class="s1">&#39;geom_id&#39;</span><span class="p">,</span> <span class="s1">&#39;date&#39;</span><span class="p">,</span> <span class="s1">&#39;t_start_hour&#39;</span><span class="p">,</span>
+               <span class="s1">&#39;t_end_hour&#39;</span><span class="p">,</span> <span class="s1">&#39;weekday&#39;</span><span class="p">,</span> <span class="s1">&#39;date_trunc&#39;</span><span class="p">]]</span></div>
+
+<div class="viewcode-block" id="get_labels_home"><a class="viewcode-back" href="../../wbgps.html#wbgps.labeling.get_labels_home">[docs]</a><span class="k">def</span> <span class="nf">get_labels_home</span><span class="p">(</span><span class="n">user_df</span><span class="p">,</span> <span class="n">start_hour_day</span><span class="p">,</span> <span class="n">end_hour_day</span><span class="p">,</span> <span class="n">min_pings_home_cluster_label</span><span class="p">,</span> <span class="n">work_activity_average</span><span class="p">,</span> <span class="n">home_period_window</span><span class="p">,</span> <span class="n">min_periods_over_window</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;Label the stops of a user as home or not</span>
+
+<span class="sd">    Args:</span>
+<span class="sd">        user_df (Data Frame): PySpark DataFrame containing all the stops of a user. It is filtered by cluster_label and date_trunc. Needs the columns &#39;duration&#39; and &#39;cluster_label&#39;</span>
+<span class="sd">        start_hour_day (int): Starting hour of the activity day</span>
+<span class="sd">        end_hour_day (int): Ending hour of the activity day</span>
+<span class="sd">        min_pings_home_cluster_label (int): Minimum number of pings in a cluster to be considered as home</span>
+<span class="sd">        work_activity_average (float): Average fraction of time spent at work to be considered as work</span>
+<span class="sd">        home_period_window (int): Number of days to consider for the rolling window</span>
+<span class="sd">        min_periods_over_window (int): Minimum number of days to consider for the rolling window</span>
+
+<span class="sd">    Returns:</span>
+<span class="sd">        Data Frame: PySpark DataFrame containing all the stops of a user. It is filtered by cluster_label and date_trunc. Needs the columns &#39;duration&#39; and &#39;cluster_label&#39;. It contains the following columns:</span>
+<span class="sd">            - location_type: &#39;H&#39; if home, &#39;W&#39; if work, &#39;O&#39; if other</span>
+<span class="sd">            - home_label: cluster_label of the home location</span>
+<span class="sd">            - work_label: cluster_label of the work location</span>
+<span class="sd">            - date_trunc: date of the stop</span>
+<span class="sd">            - weekday: day of the week of the stop</span>
+<span class="sd">            - t_start_hour: starting hour of the stop</span>
+<span class="sd">            - t_end_hour: ending hour of the stop</span>
+<span class="sd">            - date: date of the stop</span>
+<span class="sd">            - geom_id: geom_id of the stop</span>
+<span class="sd">            - uid: user_id of the stop</span>
+<span class="sd">            - t_start: starting timestamp of the stop</span>
+<span class="sd">            - t_end: ending timestamp of the stop</span>
+<span class="sd">            - duration: duration of the stop</span>
+<span class="sd">            - latitude: latitude of the stop</span>
+<span class="sd">            - longitude: longitude of the stop</span>
+<span class="sd">            - total_duration_stop_location: total duration of the stop</span>
+<span class="sd">            - total_pings_stop: total number of pings of the stop</span>
+<span class="sd">            - cluster_label: cluster_label of the stop</span>
+<span class="sd">            - median_accuracy: median accuracy of the stop</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">def</span> <span class="nf">pandas_labels_home</span><span class="p">(</span><span class="n">key</span><span class="p">,</span><span class="n">data</span><span class="p">):</span>
+        <span class="n">user_df</span> <span class="o">=</span> <span class="n">data</span>
+        <span class="n">user_df</span> <span class="o">=</span> <span class="n">initialize_user_df</span><span class="p">(</span><span class="n">user_df</span><span class="p">)</span>
+        <span class="n">home_tmp</span> <span class="o">=</span> <span class="n">get_home_tmp</span><span class="p">(</span><span class="n">user_df</span><span class="p">,</span> <span class="n">start_hour_day</span><span class="p">,</span> <span class="n">end_hour_day</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">home_tmp</span><span class="o">.</span><span class="n">empty</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">user_df</span>
+        <span class="n">home_tmp</span> <span class="o">=</span> <span class="n">compute_cumulative_duration</span><span class="p">(</span><span class="n">home_tmp</span><span class="p">,</span> <span class="n">home_period_window</span><span class="p">,</span> <span class="n">min_periods_over_window</span><span class="p">,</span> <span class="n">min_pings_home_cluster_label</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">home_tmp</span><span class="o">.</span><span class="n">empty</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">user_df</span>
+        <span class="n">user_df</span> <span class="o">=</span> <span class="n">add_home_label</span><span class="p">(</span><span class="n">user_df</span><span class="p">,</span> <span class="n">home_tmp</span><span class="p">)</span>
+        <span class="n">user_df</span> <span class="o">=</span> <span class="n">interpolate_missing_dates</span><span class="p">(</span><span class="n">user_df</span><span class="p">,</span> <span class="n">home_tmp</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">remove_unused_cols</span><span class="p">(</span><span class="n">user_df</span><span class="p">)</span><span class="c1">#user_df) #if home_tmp.cluster_label.unique().size != 0 else user_df.drop([&#39;location_type&#39;, &#39;home_label&#39;], axis=1)</span>
+
+    <span class="n">schema_df</span> <span class="o">=</span> <span class="n">StructType</span><span class="p">([</span>
+    <span class="n">StructField</span><span class="p">(</span><span class="s1">&#39;uid&#39;</span><span class="p">,</span> <span class="n">StringType</span><span class="p">(),</span> <span class="kc">False</span><span class="p">),</span><span class="c1">#</span>
+    <span class="n">StructField</span><span class="p">(</span><span class="s1">&#39;t_start&#39;</span><span class="p">,</span> <span class="n">LongType</span><span class="p">(),</span> <span class="kc">False</span><span class="p">),</span><span class="c1">#</span>
+    <span class="n">StructField</span><span class="p">(</span><span class="s1">&#39;t_end&#39;</span><span class="p">,</span> <span class="n">LongType</span><span class="p">(),</span> <span class="kc">False</span><span class="p">),</span><span class="c1">#</span>
+    <span class="n">StructField</span><span class="p">(</span><span class="s1">&#39;duration&#39;</span><span class="p">,</span> <span class="n">LongType</span><span class="p">(),</span> <span class="kc">False</span><span class="p">),</span><span class="c1">#</span>
+    <span class="n">StructField</span><span class="p">(</span><span class="s1">&#39;latitude&#39;</span><span class="p">,</span> <span class="n">DoubleType</span><span class="p">(),</span> <span class="kc">False</span><span class="p">),</span><span class="c1">#</span>
+    <span class="n">StructField</span><span class="p">(</span><span class="s1">&#39;longitude&#39;</span><span class="p">,</span> <span class="n">DoubleType</span><span class="p">(),</span> <span class="kc">False</span><span class="p">),</span><span class="c1">#</span>
+    <span class="n">StructField</span><span class="p">(</span><span class="s1">&#39;total_duration_stop_location&#39;</span><span class="p">,</span> <span class="n">LongType</span><span class="p">(),</span> <span class="kc">False</span><span class="p">),</span><span class="c1">#</span>
+    <span class="n">StructField</span><span class="p">(</span><span class="s1">&#39;total_pings_stop&#39;</span><span class="p">,</span> <span class="n">LongType</span><span class="p">(),</span> <span class="kc">False</span><span class="p">),</span><span class="c1">#</span>
+    <span class="n">StructField</span><span class="p">(</span><span class="s1">&#39;cluster_label&#39;</span><span class="p">,</span> <span class="n">LongType</span><span class="p">(),</span> <span class="kc">False</span><span class="p">),</span><span class="c1">#</span>
+    <span class="n">StructField</span><span class="p">(</span><span class="s1">&#39;median_accuracy&#39;</span><span class="p">,</span> <span class="n">DoubleType</span><span class="p">(),</span> <span class="kc">False</span><span class="p">),</span><span class="c1">#</span>
+    <span class="n">StructField</span><span class="p">(</span><span class="s1">&#39;location_type&#39;</span><span class="p">,</span> <span class="n">StringType</span><span class="p">(),</span> <span class="kc">True</span><span class="p">),</span>
+    <span class="n">StructField</span><span class="p">(</span><span class="s1">&#39;home_label&#39;</span><span class="p">,</span> <span class="n">LongType</span><span class="p">(),</span> <span class="kc">True</span><span class="p">),</span>
+    <span class="n">StructField</span><span class="p">(</span><span class="s1">&#39;work_label&#39;</span><span class="p">,</span> <span class="n">LongType</span><span class="p">(),</span> <span class="kc">True</span><span class="p">),</span>
+    <span class="n">StructField</span><span class="p">(</span><span class="s1">&#39;geom_id&#39;</span><span class="p">,</span> <span class="n">StringType</span><span class="p">(),</span> <span class="kc">False</span><span class="p">),</span><span class="c1">#</span>
+    <span class="n">StructField</span><span class="p">(</span><span class="s1">&#39;date&#39;</span><span class="p">,</span> <span class="n">TimestampType</span><span class="p">(),</span> <span class="kc">True</span><span class="p">),</span><span class="c1">#</span>
+    <span class="n">StructField</span><span class="p">(</span><span class="s1">&#39;t_start_hour&#39;</span><span class="p">,</span> <span class="n">IntegerType</span><span class="p">(),</span> <span class="kc">True</span><span class="p">),</span><span class="c1">#</span>
+    <span class="n">StructField</span><span class="p">(</span><span class="s1">&#39;t_end_hour&#39;</span><span class="p">,</span> <span class="n">IntegerType</span><span class="p">(),</span> <span class="kc">True</span><span class="p">),</span><span class="c1">#</span>
+    <span class="n">StructField</span><span class="p">(</span><span class="s1">&#39;weekday&#39;</span><span class="p">,</span> <span class="n">IntegerType</span><span class="p">(),</span> <span class="kc">True</span><span class="p">),</span>
+    <span class="n">StructField</span><span class="p">(</span><span class="s2">&quot;date_trunc&quot;</span><span class="p">,</span> <span class="n">TimestampType</span><span class="p">(),</span> <span class="kc">True</span><span class="p">)</span><span class="c1">#</span>
+    <span class="p">])</span>
+    <span class="c1"># print(user_df.columns)</span>
+
+    <span class="k">return</span> <span class="n">user_df</span><span class="o">.</span><span class="n">groupBy</span><span class="p">(</span><span class="s2">&quot;uid&quot;</span><span class="p">)</span><span class="o">.</span><span class="n">applyInPandas</span><span class="p">(</span><span class="n">pandas_labels_home</span><span class="p">,</span> <span class="n">schema</span> <span class="o">=</span> <span class="n">schema_df</span><span class="p">)</span></div>
+
+<div class="viewcode-block" id="work_rolling_on_date"><a class="viewcode-back" href="../../wbgps.html#wbgps.labeling.work_rolling_on_date">[docs]</a><span class="k">def</span> <span class="nf">work_rolling_on_date</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">work_period_window</span><span class="p">,</span> <span class="n">min_periods_over_window_work</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;If on average over &quot;period&quot; centered in &quot;date&quot; a candidate satisfy the conditions then for &quot;date&quot; is selected as WORK location</span>
+
+<span class="sd">    Args:</span>
+<span class="sd">        x (Data Frame): DataFrame containing all the stops of a user. It is filtered by cluster_label and date_trunc. Needs the columns &#39;duration&#39;, &#39;cluster_label&#39;</span>
+<span class="sd">        work_period_window (int): Number of days to consider for the rolling window</span>
+<span class="sd">        min_periods_over_window_work (int): Minimum number of days to consider for the rolling window</span>
+
+<span class="sd">    Returns:</span>
+<span class="sd">        Data Frame: DataFrame containing all the stops of a user. It is filtered by cluster_label and date_trunc. Needs the columns &#39;duration&#39;, &#39;cluster_label&#39;. It contains the following columns:</span>
+<span class="sd">            - duration_average: average duration of the stop</span>
+<span class="sd">            - date_trunc: date of the stop</span>
+<span class="sd">            - cluster_label: cluster_label of the stop</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">x</span> <span class="o">=</span> <span class="n">x</span><span class="o">.</span><span class="n">sort_values</span><span class="p">(</span><span class="s1">&#39;date_trunc&#39;</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">x</span><span class="o">.</span><span class="n">set_index</span><span class="p">(</span><span class="s1">&#39;date_trunc&#39;</span><span class="p">)[[</span><span class="s1">&#39;duration&#39;</span><span class="p">]]</span><span class="o">.</span><span class="n">rolling</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;</span><span class="si">{</span><span class="n">work_period_window</span><span class="si">}</span><span class="s1">D&#39;</span><span class="p">,</span> <span class="n">min_periods</span><span class="o">=</span><span class="nb">int</span><span class="p">(</span>
+        <span class="n">min_periods_over_window_work</span> <span class="o">*</span> <span class="n">work_period_window</span><span class="p">))</span><span class="o">.</span><span class="n">mean</span><span class="p">()</span></div>
+
+
+<div class="viewcode-block" id="get_work_tmp"><a class="viewcode-back" href="../../wbgps.html#wbgps.labeling.get_work_tmp">[docs]</a><span class="k">def</span> <span class="nf">get_work_tmp</span><span class="p">(</span><span class="n">user_df</span><span class="p">,</span> <span class="n">start_hour_day</span><span class="p">,</span> <span class="n">end_hour_day</span><span class="p">,</span> <span class="n">home_list</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;Get the work locations of a user</span>
+
+<span class="sd">    Args:</span>
+<span class="sd">        user_df (Data Frame): DataFrame containing all the stops of a user. It is filtered by cluster_label and date_trunc. Needs the columns &#39;duration&#39;, &#39;cluster_label&#39;</span>
+<span class="sd">        start_hour_day (int): Starting hour of the activity day</span>
+<span class="sd">        end_hour_day (int): Ending hour of the activity day</span>
+<span class="sd">        home_list (list of ints, optional): List of cluster_labels of the home locations. Defaults to None.</span>
+
+<span class="sd">    Returns:</span>
+<span class="sd">        Data Frame: DataFrame containing all the stops of a user. It is filtered by cluster_label and date_trunc. Needs the columns &#39;duration&#39;, &#39;cluster_label&#39;. It contains the following columns:</span>
+<span class="sd">            - duration_average: average duration of the stop</span>
+<span class="sd">            - date_trunc: date of the stop</span>
+<span class="sd">            - cluster_label: cluster_label of the stop</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">if</span> <span class="n">home_list</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="n">work_tmp</span> <span class="o">=</span> <span class="n">user_df</span><span class="p">[</span><span class="o">~</span><span class="p">(</span><span class="n">user_df</span><span class="p">[</span><span class="s1">&#39;cluster_label&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">isin</span><span class="p">(</span><span class="n">home_list</span><span class="p">))]</span><span class="o">.</span><span class="n">copy</span><span class="p">()</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="n">work_tmp</span> <span class="o">=</span> <span class="n">user_df</span><span class="o">.</span><span class="n">copy</span><span class="p">()</span>
+    <span class="n">work_tmp</span> <span class="o">=</span> <span class="n">work_tmp</span><span class="p">[((</span><span class="n">work_tmp</span><span class="p">[</span><span class="s1">&#39;t_start_hour&#39;</span><span class="p">]</span> <span class="o">&gt;=</span> <span class="n">start_hour_day</span> <span class="o">+</span> <span class="mi">4</span><span class="p">)</span> <span class="o">&amp;</span> <span class="p">(</span><span class="n">work_tmp</span><span class="p">[</span><span class="s1">&#39;t_end_hour&#39;</span><span class="p">]</span> <span class="o">&lt;=</span> <span class="n">end_hour_day</span> <span class="o">-</span> <span class="mi">6</span><span class="p">))</span> <span class="o">&amp;</span> <span class="p">(</span><span class="o">~</span><span class="n">work_tmp</span><span class="p">[</span><span class="s1">&#39;weekday&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">isin</span><span class="p">([</span><span class="mi">1</span><span class="p">,</span> <span class="mi">7</span><span class="p">]))]</span>
+    <span class="k">return</span> <span class="n">work_tmp</span></div>
+
+
+<div class="viewcode-block" id="compute_average_duration"><a class="viewcode-back" href="../../wbgps.html#wbgps.labeling.compute_average_duration">[docs]</a><span class="k">def</span> <span class="nf">compute_average_duration</span><span class="p">(</span><span class="n">work_tmp</span><span class="p">,</span> <span class="n">work_activity_average</span><span class="p">,</span> <span class="n">work_period_window</span><span class="p">,</span> <span class="n">min_periods_over_window_work</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;Compute the average duration of the work locations</span>
+
+<span class="sd">    Args:</span>
+<span class="sd">        work_tmp (Data Frame): DataFrame containing all the stops of a user. It is filtered by cluster_label and date_trunc. Needs the columns &#39;duration&#39;, &#39;cluster_label&#39;</span>
+<span class="sd">        work_activity_average (float): Minimum average fraction of time spent at work to be considered as work</span>
+<span class="sd">        work_period_window (int): Number of days to consider for the rolling window</span>
+<span class="sd">        min_periods_over_window_work (int): Minimum number of days to consider for the rolling window</span>
+
+<span class="sd">    Returns:</span>
+<span class="sd">        Data Frame: DataFrame containing all the stops of a user. It is filtered by cluster_label and date_trunc. Needs the columns &#39;duration&#39;, &#39;cluster_label&#39;. It contains the following columns:</span>
+<span class="sd">            - duration_average: average duration of the stop</span>
+<span class="sd">            - date_trunc: date of the stop</span>
+<span class="sd">            - cluster_label: cluster_label of the stop</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">work_tmp</span> <span class="o">=</span> <span class="n">work_tmp</span><span class="p">[[</span><span class="s1">&#39;cluster_label&#39;</span><span class="p">,</span> <span class="s1">&#39;date_trunc&#39;</span><span class="p">,</span> <span class="s1">&#39;duration&#39;</span><span class="p">]]</span><span class="o">.</span><span class="n">groupby</span><span class="p">([</span><span class="s1">&#39;cluster_label&#39;</span><span class="p">,</span> <span class="s1">&#39;date_trunc&#39;</span><span class="p">])</span><span class="o">.</span><span class="n">sum</span><span class="p">()</span><span class="o">.</span><span class="n">reset_index</span><span class="p">()</span>
+    <span class="n">work_tmp</span> <span class="o">=</span> <span class="n">work_tmp</span><span class="o">.</span><span class="n">merge</span><span class="p">(</span><span class="n">work_tmp</span><span class="p">[[</span><span class="s1">&#39;date_trunc&#39;</span><span class="p">,</span> <span class="s1">&#39;cluster_label&#39;</span><span class="p">,</span> <span class="s1">&#39;duration&#39;</span><span class="p">]]</span><span class="o">.</span><span class="n">groupby</span><span class="p">([</span><span class="s1">&#39;cluster_label&#39;</span><span class="p">])</span><span class="o">.</span><span class="n">apply</span><span class="p">(</span><span class="n">work_rolling_on_date</span><span class="p">,</span> <span class="n">work_period_window</span><span class="p">,</span> <span class="n">min_periods_over_window_work</span><span class="p">)</span><span class="o">.</span><span class="n">reset_index</span><span class="p">(),</span> <span class="n">on</span><span class="o">=</span><span class="p">[</span><span class="s1">&#39;date_trunc&#39;</span><span class="p">,</span> <span class="s1">&#39;cluster_label&#39;</span><span class="p">],</span> <span class="n">suffixes</span><span class="o">=</span><span class="p">(</span><span class="s1">&#39;&#39;</span><span class="p">,</span> <span class="s1">&#39;_average&#39;</span><span class="p">))</span>
+    <span class="n">work_tmp</span> <span class="o">=</span> <span class="n">work_tmp</span><span class="p">[(</span><span class="n">work_tmp</span><span class="o">.</span><span class="n">duration_average</span> <span class="o">&gt;=</span> <span class="n">work_activity_average</span><span class="p">)]</span>
+    <span class="k">return</span> <span class="n">work_tmp</span><span class="o">.</span><span class="n">dropna</span><span class="p">(</span><span class="n">subset</span><span class="o">=</span><span class="p">[</span><span class="s1">&#39;duration_average&#39;</span><span class="p">])</span></div>
+
+<div class="viewcode-block" id="add_work_label"><a class="viewcode-back" href="../../wbgps.html#wbgps.labeling.add_work_label">[docs]</a><span class="k">def</span> <span class="nf">add_work_label</span><span class="p">(</span><span class="n">user_df</span><span class="p">,</span> <span class="n">work_tmp</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;Add the work label to the user_df</span>
+
+<span class="sd">    Args:</span>
+<span class="sd">        user_df (Data Frame): DataFrame containing all the stops of a user. It is filtered by cluster_label and date_trunc. Needs the columns &#39;duration&#39;, &#39;cluster_label&#39;</span>
+<span class="sd">        work_tmp (Data Frame): DataFrame containing all the stops of a user. It is filtered by cluster_label and date_trunc. Needs the columns &#39;duration&#39;, &#39;cluster_label&#39;</span>
+
+<span class="sd">    Returns:</span>
+<span class="sd">        Data Frame: DataFrame containing all the stops of a user. It is filtered by cluster_label and date_trunc. Needs the columns &#39;duration&#39;, &#39;cluster_label&#39;. It contains the following columns:</span>
+<span class="sd">            - work_label: cluster_label of the work location</span>
+<span class="sd">            - date_trunc: date of the stop</span>
+<span class="sd">            - cluster_label: cluster_label of the stop</span>
+<span class="sd">            - location_type: &#39;H&#39; if home, &#39;W&#39; if work, &#39;O&#39; if other</span>
+<span class="sd">            - home_label: cluster_label of the home location</span>
+<span class="sd">            - work_label: cluster_label of the work location</span>
+<span class="sd">            - date_trunc: date of the stop</span>
+<span class="sd">            - weekday: day of the week of the stop</span>
+<span class="sd">            - t_start_hour: starting hour of the stop</span>
+<span class="sd">            - t_end_hour: ending hour of the stop</span>
+<span class="sd">            - date: date of the stop</span>
+<span class="sd">            - geom_id: geom_id of the stop</span>
+<span class="sd">            - uid: user_id of the stop</span>
+<span class="sd">            - t_start: starting timestamp of the stop</span>
+<span class="sd">            - t_end: ending timestamp of the stop</span>
+<span class="sd">            - duration: duration of the stop</span>
+<span class="sd">            - latitude: latitude of the stop</span>
+<span class="sd">            - longitude: longitude of the stop</span>
+<span class="sd">            - total_duration_stop_location: total duration of the stop</span>
+<span class="sd">            - total_pings_stop: total number of pings of the stop</span>
+<span class="sd">            - median_accuracy: median accuracy of the stop</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">work_label</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="nb">zip</span><span class="p">(</span><span class="n">work_tmp</span><span class="o">.</span><span class="n">cluster_label</span><span class="p">,</span> <span class="n">work_tmp</span><span class="o">.</span><span class="n">date_trunc</span><span class="p">))</span>
+    <span class="n">idx</span> <span class="o">=</span> <span class="n">pd</span><span class="o">.</span><span class="n">MultiIndex</span><span class="o">.</span><span class="n">from_frame</span><span class="p">(</span><span class="n">user_df</span><span class="p">[[</span><span class="s1">&#39;cluster_label&#39;</span><span class="p">,</span> <span class="s1">&#39;date_trunc&#39;</span><span class="p">]])</span>
+    <span class="n">user_df</span><span class="o">.</span><span class="n">loc</span><span class="p">[</span><span class="n">idx</span><span class="o">.</span><span class="n">isin</span><span class="p">(</span><span class="n">work_label</span><span class="p">),</span> <span class="s1">&#39;work_label&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">user_df</span><span class="o">.</span><span class="n">loc</span><span class="p">[</span><span class="n">idx</span><span class="o">.</span><span class="n">isin</span><span class="p">(</span><span class="n">work_label</span><span class="p">),</span> <span class="s1">&#39;cluster_label&#39;</span><span class="p">]</span>
+    <span class="k">return</span> <span class="n">user_df</span></div>
+
+<div class="viewcode-block" id="interpolate_missing_dates_work"><a class="viewcode-back" href="../../wbgps.html#wbgps.labeling.interpolate_missing_dates_work">[docs]</a><span class="k">def</span> <span class="nf">interpolate_missing_dates_work</span><span class="p">(</span><span class="n">user_df</span><span class="p">,</span> <span class="n">work_tmp</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;Interpolate the missing dates of the work locations</span>
+
+<span class="sd">    Args:</span>
+<span class="sd">        user_df (Data Frame): DataFrame containing all the stops of a user. It is filtered by cluster_label and date_trunc. Needs the columns &#39;duration&#39;, &#39;cluster_label&#39;</span>
+<span class="sd">        work_tmp (Data Frame): DataFrame containing all the stops of a user. It is filtered by cluster_label and date_trunc. Needs the columns &#39;duration&#39;, &#39;cluster_label&#39;</span>
+
+<span class="sd">    Returns:</span>
+<span class="sd">        Data Frame: DataFrame containing all the stops of a user. It is filtered by cluster_label and date_trunc. Needs the columns &#39;duration&#39;, &#39;cluster_label&#39;. It contains the following columns:</span>
+<span class="sd">            - location_type: &#39;H&#39; if home, &#39;W&#39; if work, &#39;O&#39; if other</span>
+<span class="sd">            - home_label: cluster_label of the home location</span>
+<span class="sd">            - work_label: cluster_label of the work location</span>
+<span class="sd">            - date_trunc: date of the stop</span>
+<span class="sd">            - weekday: day of the week of the stop</span>
+<span class="sd">            - t_start_hour: starting hour of the stop</span>
+<span class="sd">            - t_end_hour: ending hour of the stop</span>
+<span class="sd">            - date: date of the stop</span>
+<span class="sd">            - geom_id: geom_id of the stop</span>
+<span class="sd">            - uid: user_id of the stop</span>
+<span class="sd">            - t_start: starting timestamp of the stop</span>
+<span class="sd">            - t_end: ending timestamp of the stop</span>
+<span class="sd">            - duration: duration of the stop</span>
+<span class="sd">            - latitude: latitude of the stop</span>
+<span class="sd">            - longitude: longitude of the stop</span>
+<span class="sd">            - total_duration_stop_location: total duration of the stop</span>
+<span class="sd">            - total_pings_stop: total number of pings of the stop</span>
+<span class="sd">            - cluster_label: cluster_label of the stop</span>
+<span class="sd">            - median_accuracy: median accuracy of the stop</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">first_day</span> <span class="o">=</span> <span class="n">work_tmp</span><span class="p">[</span><span class="s1">&#39;date_trunc&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">min</span><span class="p">()</span>
+    <span class="n">last_day</span> <span class="o">=</span> <span class="n">work_tmp</span><span class="p">[</span><span class="s1">&#39;date_trunc&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">max</span><span class="p">()</span>
+    <span class="n">base_dates</span> <span class="o">=</span> <span class="n">pd</span><span class="o">.</span><span class="n">date_range</span><span class="p">(</span><span class="n">start</span><span class="o">=</span><span class="n">first_day</span><span class="p">,</span> <span class="n">end</span><span class="o">=</span><span class="n">last_day</span><span class="p">)</span>
+    <span class="n">date_cluster</span> <span class="o">=</span> <span class="n">work_tmp</span><span class="o">.</span><span class="n">drop_duplicates</span><span class="p">([</span><span class="s1">&#39;cluster_label&#39;</span><span class="p">,</span> <span class="s1">&#39;date_trunc&#39;</span><span class="p">])[[</span><span class="s1">&#39;date_trunc&#39;</span><span class="p">,</span> <span class="s1">&#39;cluster_label&#39;</span><span class="p">]]</span><span class="o">.</span><span class="n">copy</span><span class="p">()</span>
+    <span class="n">date_cluster</span> <span class="o">=</span> <span class="n">date_cluster</span><span class="o">.</span><span class="n">drop_duplicates</span><span class="p">([</span><span class="s1">&#39;date_trunc&#39;</span><span class="p">])</span>
+    <span class="n">date_cluster</span> <span class="o">=</span> <span class="n">date_cluster</span><span class="o">.</span><span class="n">sort_values</span><span class="p">(</span><span class="n">by</span><span class="o">=</span><span class="s1">&#39;date_trunc&#39;</span><span class="p">)</span><span class="o">.</span><span class="n">set_index</span><span class="p">(</span><span class="s1">&#39;date_trunc&#39;</span><span class="p">)</span>
+    <span class="n">date_cluster</span> <span class="o">=</span> <span class="n">date_cluster</span><span class="o">.</span><span class="n">reindex</span><span class="p">(</span><span class="n">base_dates</span><span class="p">)</span>
+    <span class="n">date_cluster</span> <span class="o">=</span> <span class="n">date_cluster</span><span class="o">.</span><span class="n">interpolate</span><span class="p">(</span><span class="n">method</span><span class="o">=</span><span class="s1">&#39;nearest&#39;</span><span class="p">)</span><span class="o">.</span><span class="n">ffill</span><span class="p">()</span><span class="o">.</span><span class="n">bfill</span><span class="p">()</span> <span class="k">if</span> <span class="n">pd</span><span class="o">.</span><span class="n">notna</span><span class="p">(</span><span class="n">date_cluster</span><span class="p">[</span><span class="s1">&#39;cluster_label&#39;</span><span class="p">])</span><span class="o">.</span><span class="n">sum</span><span class="p">()</span> <span class="o">&gt;</span> <span class="mi">1</span> <span class="k">else</span> <span class="n">date_cluster</span><span class="o">.</span><span class="n">ffill</span><span class="p">()</span><span class="o">.</span><span class="n">bfill</span><span class="p">()</span>
+    <span class="n">date_cluster</span><span class="o">.</span><span class="n">index</span><span class="o">.</span><span class="n">name</span> <span class="o">=</span> <span class="s1">&#39;date_trunc&#39;</span>
+    <span class="n">date_cluster</span> <span class="o">=</span> <span class="n">date_cluster</span><span class="o">.</span><span class="n">reset_index</span><span class="p">()</span>
+    <span class="n">work_label</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="nb">zip</span><span class="p">(</span><span class="n">date_cluster</span><span class="o">.</span><span class="n">cluster_label</span><span class="p">,</span> <span class="n">date_cluster</span><span class="o">.</span><span class="n">date_trunc</span><span class="p">))</span>
+    <span class="n">idx</span> <span class="o">=</span> <span class="n">pd</span><span class="o">.</span><span class="n">MultiIndex</span><span class="o">.</span><span class="n">from_frame</span><span class="p">(</span><span class="n">user_df</span><span class="p">[[</span><span class="s1">&#39;cluster_label&#39;</span><span class="p">,</span> <span class="s1">&#39;date_trunc&#39;</span><span class="p">]])</span>
+    <span class="n">user_df</span><span class="o">.</span><span class="n">loc</span><span class="p">[</span><span class="n">idx</span><span class="o">.</span><span class="n">isin</span><span class="p">(</span><span class="n">work_label</span><span class="p">),</span> <span class="s1">&#39;location_type&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="s1">&#39;W&#39;</span>
+    <span class="k">return</span> <span class="n">user_df</span></div>
+
+
+<div class="viewcode-block" id="get_labels_work"><a class="viewcode-back" href="../../wbgps.html#wbgps.labeling.get_labels_work">[docs]</a><span class="k">def</span> <span class="nf">get_labels_work</span><span class="p">(</span><span class="n">user_df</span><span class="p">,</span> <span class="n">start_hour_day</span><span class="p">,</span> <span class="n">end_hour_day</span><span class="p">,</span> <span class="n">min_pings_home_cluster_label</span><span class="p">,</span> <span class="n">work_activity_average</span><span class="p">,</span> <span class="n">work_period_window</span><span class="p">,</span> <span class="n">min_periods_over_window_work</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;Get the work locations of a user</span>
+
+<span class="sd">    Args:</span>
+<span class="sd">        user_df (Data Frame): DataFrame containing all the stops of a user. It is filtered by cluster_label and date_trunc. Needs the columns &#39;duration&#39;, &#39;cluster_label&#39;</span>
+<span class="sd">        start_hour_day (int): Starting hour of the activity day</span>
+<span class="sd">        end_hour_day (int): Ending hour of the activity day</span>
+<span class="sd">        min_pings_home_cluster_label (int): Minimum number of pings in a cluster to be considered as home</span>
+<span class="sd">        work_activity_average (float): Minimum average fraction of time spent at work to be considered as work</span>
+<span class="sd">        work_period_window (int): Minimum number of days to consider for the rolling window</span>
+<span class="sd">        min_periods_over_window_work (float): Minimum fraction of days to consider for the rolling window</span>
+
+<span class="sd">    Returns:</span>
+<span class="sd">        Data Frame: DataFrame containing all the stops of a user. It is filtered by cluster_label and date_trunc. Needs the columns &#39;duration&#39;, &#39;cluster_label&#39;. It contains the following columns:</span>
+<span class="sd">            - location_type: &#39;H&#39; if home, &#39;W&#39; if work, &#39;O&#39; if other</span>
+<span class="sd">            - home_label: cluster_label of the home location</span>
+<span class="sd">            - work_label: cluster_label of the work location</span>
+<span class="sd">            - date_trunc: date of the stop</span>
+<span class="sd">            - weekday: day of the week of the stop</span>
+<span class="sd">            - t_start_hour: starting hour of the stop</span>
+<span class="sd">            - t_end_hour: ending hour of the stop</span>
+<span class="sd">            - date: date of the stop</span>
+<span class="sd">            - geom_id: geom_id of the stop</span>
+<span class="sd">            - uid: user_id of the stop</span>
+<span class="sd">            - t_start: starting timestamp of the stop</span>
+<span class="sd">            - t_end: ending timestamp of the stop</span>
+<span class="sd">            - duration: duration of the stop</span>
+<span class="sd">            - latitude: latitude of the stop</span>
+<span class="sd">            - longitude: longitude of the stop</span>
+<span class="sd">            - total_duration_stop_location: total duration of the stop</span>
+<span class="sd">            - total_pings_stop: total number of pings of the stop</span>
+<span class="sd">            - cluster_label: cluster_label of the stop</span>
+<span class="sd">            - median_accuracy: median accuracy of the stop</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">def</span> <span class="nf">pandas_labels_work</span><span class="p">(</span><span class="n">key</span><span class="p">,</span> <span class="n">data</span><span class="p">):</span>
+        <span class="n">user_df</span> <span class="o">=</span> <span class="n">data</span>
+        <span class="c1"># user_df[&#39;location_type&#39;] = &#39;O&#39;</span>
+        <span class="c1">#  user_df[&#39;work_label&#39;] = -1</span>
+        <span class="n">home_list</span> <span class="o">=</span> <span class="n">user_df</span><span class="o">.</span><span class="n">loc</span><span class="p">[</span><span class="n">user_df</span><span class="p">[</span><span class="s2">&quot;location_type&quot;</span><span class="p">]</span> <span class="o">==</span> <span class="s2">&quot;H&quot;</span><span class="p">]</span><span class="c1">#.unique()</span>
+        <span class="k">if</span> <span class="n">home_list</span><span class="o">.</span><span class="n">empty</span><span class="p">:</span>
+            <span class="n">home_list</span> <span class="o">=</span> <span class="kc">None</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">home_list</span> <span class="o">=</span> <span class="n">home_list</span><span class="p">[</span><span class="s2">&quot;cluster_label&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">unique</span><span class="p">()</span>
+        <span class="n">work_tmp</span> <span class="o">=</span> <span class="n">get_work_tmp</span><span class="p">(</span><span class="n">user_df</span><span class="p">,</span> <span class="n">start_hour_day</span><span class="p">,</span> <span class="n">end_hour_day</span><span class="p">,</span> <span class="n">home_list</span><span class="p">)</span>
+        <span class="c1"># work_tmp = get_work_tmp(user_df, start_hour_day, end_hour_day)</span>
+        <span class="k">if</span> <span class="n">work_tmp</span><span class="o">.</span><span class="n">empty</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">user_df</span>
+        <span class="n">work_tmp</span> <span class="o">=</span> <span class="n">compute_average_duration</span><span class="p">(</span><span class="n">work_tmp</span><span class="p">,</span> <span class="n">work_activity_average</span><span class="p">,</span> <span class="n">work_period_window</span><span class="p">,</span> <span class="n">min_periods_over_window_work</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">work_tmp</span><span class="o">.</span><span class="n">empty</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">user_df</span>
+        <span class="n">user_df</span> <span class="o">=</span> <span class="n">add_work_label</span><span class="p">(</span><span class="n">user_df</span><span class="p">,</span> <span class="n">work_tmp</span><span class="p">)</span>
+        <span class="n">user_df</span> <span class="o">=</span> <span class="n">interpolate_missing_dates_work</span><span class="p">(</span><span class="n">user_df</span><span class="p">,</span> <span class="n">work_tmp</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">remove_unused_cols</span><span class="p">(</span><span class="n">user_df</span><span class="p">)</span>
+
+    <span class="n">schema_df</span> <span class="o">=</span> <span class="n">StructType</span><span class="p">([</span>
+    <span class="n">StructField</span><span class="p">(</span><span class="s1">&#39;uid&#39;</span><span class="p">,</span> <span class="n">StringType</span><span class="p">(),</span> <span class="kc">False</span><span class="p">),</span>
+    <span class="n">StructField</span><span class="p">(</span><span class="s1">&#39;t_start&#39;</span><span class="p">,</span> <span class="n">LongType</span><span class="p">(),</span> <span class="kc">False</span><span class="p">),</span>
+    <span class="n">StructField</span><span class="p">(</span><span class="s1">&#39;t_end&#39;</span><span class="p">,</span> <span class="n">LongType</span><span class="p">(),</span> <span class="kc">False</span><span class="p">),</span>
+    <span class="n">StructField</span><span class="p">(</span><span class="s1">&#39;duration&#39;</span><span class="p">,</span> <span class="n">LongType</span><span class="p">(),</span> <span class="kc">False</span><span class="p">),</span>
+    <span class="n">StructField</span><span class="p">(</span><span class="s1">&#39;latitude&#39;</span><span class="p">,</span> <span class="n">DoubleType</span><span class="p">(),</span> <span class="kc">False</span><span class="p">),</span>
+    <span class="n">StructField</span><span class="p">(</span><span class="s1">&#39;longitude&#39;</span><span class="p">,</span> <span class="n">DoubleType</span><span class="p">(),</span> <span class="kc">False</span><span class="p">),</span>
+    <span class="n">StructField</span><span class="p">(</span><span class="s1">&#39;total_duration_stop_location&#39;</span><span class="p">,</span> <span class="n">LongType</span><span class="p">(),</span> <span class="kc">False</span><span class="p">),</span>
+    <span class="n">StructField</span><span class="p">(</span><span class="s1">&#39;total_pings_stop&#39;</span><span class="p">,</span> <span class="n">LongType</span><span class="p">(),</span> <span class="kc">False</span><span class="p">),</span>
+    <span class="n">StructField</span><span class="p">(</span><span class="s1">&#39;cluster_label&#39;</span><span class="p">,</span> <span class="n">LongType</span><span class="p">(),</span> <span class="kc">False</span><span class="p">),</span>
+    <span class="n">StructField</span><span class="p">(</span><span class="s1">&#39;median_accuracy&#39;</span><span class="p">,</span> <span class="n">DoubleType</span><span class="p">(),</span> <span class="kc">False</span><span class="p">),</span>
+    <span class="n">StructField</span><span class="p">(</span><span class="s1">&#39;location_type&#39;</span><span class="p">,</span> <span class="n">StringType</span><span class="p">(),</span> <span class="kc">True</span><span class="p">),</span>
+    <span class="n">StructField</span><span class="p">(</span><span class="s1">&#39;home_label&#39;</span><span class="p">,</span> <span class="n">LongType</span><span class="p">(),</span> <span class="kc">True</span><span class="p">),</span>
+    <span class="n">StructField</span><span class="p">(</span><span class="s1">&#39;work_label&#39;</span><span class="p">,</span> <span class="n">LongType</span><span class="p">(),</span> <span class="kc">True</span><span class="p">),</span>
+    <span class="n">StructField</span><span class="p">(</span><span class="s1">&#39;geom_id&#39;</span><span class="p">,</span> <span class="n">StringType</span><span class="p">(),</span> <span class="kc">False</span><span class="p">),</span>
+    <span class="n">StructField</span><span class="p">(</span><span class="s1">&#39;date&#39;</span><span class="p">,</span> <span class="n">TimestampType</span><span class="p">(),</span> <span class="kc">True</span><span class="p">),</span>
+    <span class="n">StructField</span><span class="p">(</span><span class="s1">&#39;t_start_hour&#39;</span><span class="p">,</span> <span class="n">IntegerType</span><span class="p">(),</span> <span class="kc">True</span><span class="p">),</span>
+    <span class="n">StructField</span><span class="p">(</span><span class="s1">&#39;t_end_hour&#39;</span><span class="p">,</span> <span class="n">IntegerType</span><span class="p">(),</span> <span class="kc">True</span><span class="p">),</span>
+    <span class="n">StructField</span><span class="p">(</span><span class="s1">&#39;weekday&#39;</span><span class="p">,</span> <span class="n">IntegerType</span><span class="p">(),</span> <span class="kc">True</span><span class="p">),</span>
+    <span class="n">StructField</span><span class="p">(</span><span class="s2">&quot;date_trunc&quot;</span><span class="p">,</span> <span class="n">TimestampType</span><span class="p">(),</span> <span class="kc">True</span><span class="p">)</span>
+    <span class="p">])</span>
+
+    <span class="k">return</span> <span class="n">user_df</span><span class="o">.</span><span class="n">groupBy</span><span class="p">(</span><span class="s2">&quot;uid&quot;</span><span class="p">)</span><span class="o">.</span><span class="n">applyInPandas</span><span class="p">(</span><span class="n">pandas_labels_work</span><span class="p">,</span> <span class="n">schema</span><span class="o">=</span><span class="n">schema_df</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="get_labels"><a class="viewcode-back" href="../../wbgps.html#wbgps.labeling.get_labels">[docs]</a><span class="k">def</span> <span class="nf">get_labels</span><span class="p">(</span><span class="n">user_df</span><span class="p">,</span> <span class="n">start_hour_day</span><span class="p">,</span> <span class="n">end_hour_day</span><span class="p">,</span> <span class="n">min_pings_home_cluster_label</span><span class="p">,</span> <span class="n">work_activity_average</span><span class="p">,</span> <span class="n">home_period_window</span><span class="p">,</span> <span class="n">min_periods_over_window</span><span class="p">,</span> <span class="n">work_period_window</span><span class="p">,</span> <span class="n">min_periods_over_window_work</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;Compute the labels of a user</span>
+
+<span class="sd">    Args:</span>
+<span class="sd">        user_df (Data Frame): DataFrame containing all the stops of a user. It is filtered by cluster_label and date_trunc. Needs the columns &#39;duration&#39;, &#39;cluster_label&#39;</span>
+<span class="sd">        start_hour_day (int): Starting hour of the activity day</span>
+<span class="sd">        end_hour_day (int): Ending hour of the activity day</span>
+<span class="sd">        min_pings_home_cluster_label (int): Minimum number of pings in a cluster to be considered as home</span>
+<span class="sd">        work_activity_average (float): Minimum average fraction of time spent at work to be considered as work</span>
+<span class="sd">        work_period_window (int): Minimum number of days to consider for the rolling window</span>
+<span class="sd">        min_periods_over_window_work (float): Minimum fraction of days to consider for the rolling window</span>
+
+<span class="sd">    Returns:</span>
+<span class="sd">        Data Frame: DataFrame containing all the stops of a user. It is filtered by cluster_label and date_trunc. Needs the columns &#39;duration&#39;, &#39;cluster_label&#39;. It contains the following columns:</span>
+<span class="sd">            - location_type: &#39;H&#39; if home, &#39;W&#39; if work, &#39;O&#39; if other</span>
+<span class="sd">            - home_label: cluster_label of the home location</span>
+<span class="sd">            - work_label: cluster_label of the work location</span>
+<span class="sd">            - date_trunc: date of the stop</span>
+<span class="sd">            - weekday: day of the week of the stop</span>
+<span class="sd">            - t_start_hour: starting hour of the stop</span>
+<span class="sd">            - t_end_hour: ending hour of the stop</span>
+<span class="sd">            - date: date of the stop</span>
+<span class="sd">            - geom_id: geom_id of the stop</span>
+<span class="sd">            - uid: user_id of the stop</span>
+<span class="sd">            - t_start: starting timestamp of the stop</span>
+<span class="sd">            - t_end: ending timestamp of the stop</span>
+<span class="sd">            - duration: duration of the stop</span>
+<span class="sd">            - latitude: latitude of the stop</span>
+<span class="sd">            - longitude: longitude of the stop</span>
+<span class="sd">            - total_duration_stop_location: total duration of the stop</span>
+<span class="sd">            - total_pings_stop: total number of pings of the stop</span>
+<span class="sd">            - cluster_label: cluster_label of the stop</span>
+<span class="sd">            - median_accuracy: median accuracy of the stop</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">user_df</span> <span class="o">=</span> <span class="n">get_labels_home</span><span class="p">(</span><span class="n">user_df</span><span class="p">,</span> <span class="n">start_hour_day</span><span class="p">,</span> <span class="n">end_hour_day</span><span class="p">,</span> <span class="n">min_pings_home_cluster_label</span><span class="p">,</span> <span class="n">work_activity_average</span><span class="p">,</span> <span class="n">home_period_window</span><span class="p">,</span> <span class="n">min_periods_over_window</span><span class="p">)</span>
+    <span class="n">user_df</span> <span class="o">=</span> <span class="n">get_labels_work</span><span class="p">(</span><span class="n">user_df</span><span class="p">,</span> <span class="n">start_hour_day</span><span class="p">,</span> <span class="n">end_hour_day</span><span class="p">,</span> <span class="n">min_pings_home_cluster_label</span><span class="p">,</span> <span class="n">work_activity_average</span><span class="p">,</span> <span class="n">work_period_window</span><span class="p">,</span> <span class="n">min_periods_over_window_work</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">user_df</span></div>
+</pre></div>
+
+           </div>
+          </div>
+          <footer>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2023, Ollin D. Langle-Chimal.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>
