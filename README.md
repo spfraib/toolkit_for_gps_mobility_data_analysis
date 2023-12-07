@@ -188,7 +188,7 @@ git clone https://github.com/spfraib/toolkit_for_gps_mobility_data_analysis
 cd toolkit_for_gps_mobility_data_analysis
 ```
 
-3. Install the dependencies:
+3. Install the package:
 ```sh
 pip install .
 ```
@@ -196,7 +196,11 @@ pip install .
 ### 🤖 Using toolkit_for_gps_mobility_data_analysis
 
 ```python
+<<<<<<< HEAD
 import wbgps
+=======
+using wbgps
+>>>>>>> 0181556d2774c4a71e55ea348465d1e81eb3b038
 ```
 
 ### 🧪 Tests

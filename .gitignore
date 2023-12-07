@@ -159,4 +159,8 @@ cython_debug/
 #  option (not recommended) you can uncomment the following to ignore the entire idea folder.
 #.idea/
 
+<<<<<<< HEAD
+=======
+# Deliverable ignores using code2pdf
+>>>>>>> 0181556d2774c4a71e55ea348465d1e81eb3b038
 .code2pdf

@@ -44,24 +44,6 @@ def days_at_home_dynamic(x, user_tmp, home_period_window):
     return home_days / active_days
 
 
-def home_rolling_on_date(x, home_period_window, min_periods_over_window):
-    # the output dataframe will have as index the last date of the window and consider the previous "c.home_period_window" days to compute the window. Notice that this will be biased for the first c.home_period_window
-    x = x.sort_values('date_trunc')
-    x = x.set_index('date_trunc')
-    tmp = x[['duration', 'total_pings_stop']].rolling(f'{home_period_window}D', min_periods=int(
-        min_periods_over_window * home_period_window)).sum()
-    tmp['days_count'] = x['duration'].rolling(
-        f'{home_period_window}D').count()
-
-    return tmp
-
-
-def work_rolling_on_date(x, work_period_window, min_periods_over_window_work):
-    # if on average over "period" centered in "date" a candidate satisfy the conditions then for "date" is selected as WORK location
-    x = x.sort_values('date_trunc')
-    return x.set_index('date_trunc')[['duration']].rolling(f'{work_period_window}D', min_periods=int(
-        min_periods_over_window_work * work_period_window)).mean()
-
 
 schema_df = StructType([
     StructField('user_id', StringType(), False),
@@ -85,7 +67,7 @@ schema_df = StructType([
 ])
 
 
-def get_stop_location(user_df, start_hour_day, end_hour_day, min_pings_home_cluster_label, work_activity_average):
+def get_stop_locations(user_df, start_hour_day, end_hour_day, min_pings_home_cluster_label, work_activity_average):
     @pandas_udf(schema_df, PandasUDFType.GROUPED_MAP)
     def function(user_df, start_hour_day, end_hour_day, min_pings_home_cluster_label, work_activity_average):
         user_df['location_type'] = 'O'
@@ -220,3 +202,202 @@ def get_durations(durations, start_hour_day, end_hour_day):
         'O', col('O') / col('total_duration')).drop('total_duration')
     return durations
 
+
+
+def remove_unused_cols(df):
+    return df[['user_id', 't_start', 't_end', 'duration', 'lat', 'lon',
+               'total_duration_stop_location', 'total_pings_stop',
+               'cluster_label', 'median_accuracy', 'location_type',
+               'home_label', 'work_label', 'geom_id', 'date', 't_start_hour',
+               't_end_hour', 'date_trunc']]
+
+def home_rolling_on_date(x, home_period_window, min_periods_over_window):
+    # the output dataframe will have as index the last date of the window and consider the previous "c.home_period_window" days to compute the window. Notice that this will be biased for the first c.home_period_window
+    x = x.sort_values('date_trunc')
+    x = x.set_index('date_trunc')
+    tmp = x[['duration', 'total_pings_stop']].rolling(f'{home_period_window}D', min_periods=int(
+        min_periods_over_window * home_period_window)).sum()
+    tmp['days_count'] = x['duration'].rolling(
+        f'{home_period_window}D').count()
+
+    return tmp
+
+
+def initialize_user_df(user_df):
+    user_df['location_type'] = 'O'
+    user_df['home_label'] = -1
+    user_df['work_label'] = -1
+    return user_df
+
+def get_home_tmp(user_df, start_hour_day, end_hour_day):
+    return user_df[(user_df['t_start_hour'] >= end_hour_day) | (user_df['t_end_hour'] <= start_hour_day)].copy()
+
+def compute_cumulative_duration(home_tmp, home_period_window, min_periods_over_window, min_pings_home_cluster_label):
+    home_tmp = home_tmp[['cluster_label', 'date_trunc', 'duration', 'total_pings_stop']].groupby(['cluster_label', 'date_trunc']).sum().reset_index().sort_values('date_trunc')
+    home_tmp = home_tmp.merge(home_tmp[['date_trunc', 'cluster_label', 'duration', 'total_pings_stop']].groupby(['cluster_label']).apply(home_rolling_on_date, home_period_window, min_periods_over_window).reset_index(), on=['date_trunc', 'cluster_label'], suffixes=('', '_cum'))
+    home_tmp = home_tmp[home_tmp.total_pings_stop_cum > min_pings_home_cluster_label].drop('total_pings_stop_cum', axis=1)
+    return home_tmp.dropna(subset=['duration_cum'])
+
+def add_home_label(user_df, home_tmp):
+    date_cluster = home_tmp.drop_duplicates(['cluster_label', 'date_trunc'])[['date_trunc', 'cluster_label']].copy()
+    date_cluster = date_cluster.drop_duplicates(['date_trunc'])
+    home_label = list(zip(date_cluster.cluster_label, date_cluster.date_trunc))
+    idx = pd.MultiIndex.from_frame(user_df[['cluster_label', 'date_trunc']])
+    user_df.loc[idx.isin(home_label), 'home_label'] = user_df.loc[idx.isin(home_label), 'cluster_label']
+    return user_df
+
+def interpolate_missing_dates(user_df, home_tmp):
+    first_day = home_tmp['date_trunc'].min()
+    last_day = home_tmp['date_trunc'].max()
+    base_dates = pd.date_range(start=first_day, end=last_day)
+    date_cluster = home_tmp.drop_duplicates(['cluster_label', 'date_trunc'])[['date_trunc', 'cluster_label']].copy()
+    date_cluster = date_cluster.drop_duplicates(['date_trunc'])
+    date_cluster = date_cluster.sort_values(by='date_trunc').set_index('date_trunc')
+    date_cluster = date_cluster.reindex(base_dates)
+    date_cluster = date_cluster.interpolate(method='nearest').ffill().bfill() if pd.notna(date_cluster['cluster_label']).sum() > 1 else date_cluster.ffill().bfill()
+    date_cluster.index.name = 'date_trunc'
+    date_cluster = date_cluster.reset_index()
+    home_label = list(zip(date_cluster.cluster_label, date_cluster.date_trunc))
+    idx = pd.MultiIndex.from_frame(user_df[['cluster_label', 'date_trunc']])
+    user_df.loc[idx.isin(home_label), 'location_type'] = 'H'
+    return user_df
+
+def remove_unused_cols(df):
+    return df[['uid', 't_start', 't_end', 'duration', 'latitude', 'longitude',
+               'total_duration_stop_location', 'total_pings_stop',
+               'cluster_label', 'median_accuracy', 'location_type',
+               'home_label', 'work_label', 'geom_id', 'date', 't_start_hour',
+               't_end_hour', 'weekday', 'date_trunc']]
+
+def get_labels_home(user_df, start_hour_day, end_hour_day, min_pings_home_cluster_label, work_activity_average, home_period_window, min_periods_over_window):
+    def pandas_labels_home(key,data):
+        user_df = data
+        user_df = initialize_user_df(user_df)
+        home_tmp = get_home_tmp(user_df, start_hour_day, end_hour_day)
+        if home_tmp.empty:
+            return user_df
+        home_tmp = compute_cumulative_duration(home_tmp, home_period_window, min_periods_over_window, min_pings_home_cluster_label)
+        if home_tmp.empty:
+            return user_df
+        user_df = add_home_label(user_df, home_tmp)
+        user_df = interpolate_missing_dates(user_df, home_tmp)
+        return remove_unused_cols(user_df)#user_df) #if home_tmp.cluster_label.unique().size != 0 else user_df.drop(['location_type', 'home_label'], axis=1)
+
+    schema_df = StructType([
+    StructField('uid', StringType(), False),#
+    StructField('t_start', LongType(), False),#
+    StructField('t_end', LongType(), False),#
+    StructField('duration', LongType(), False),#
+    StructField('latitude', DoubleType(), False),#
+    StructField('longitude', DoubleType(), False),#
+    StructField('total_duration_stop_location', LongType(), False),#
+    StructField('total_pings_stop', LongType(), False),#
+    StructField('cluster_label', LongType(), False),#
+    StructField('median_accuracy', DoubleType(), False),#
+    StructField('location_type', StringType(), True),
+    StructField('home_label', LongType(), True),
+    StructField('work_label', LongType(), True),
+    StructField('geom_id', StringType(), False),#
+    StructField('date', TimestampType(), True),#
+    StructField('t_start_hour', IntegerType(), True),#
+    StructField('t_end_hour', IntegerType(), True),#
+    StructField('weekday', IntegerType(), True),
+    StructField("date_trunc", TimestampType(), True)#
+    ])
+    # print(user_df.columns)
+
+    return user_df.groupBy("uid").applyInPandas(pandas_labels_home, schema = schema_df)
+
+def work_rolling_on_date(x, work_period_window, min_periods_over_window_work):
+    # if on average over "period" centered in "date" a candidate satisfy the conditions then for "date" is selected as WORK location
+    x = x.sort_values('date_trunc')
+    return x.set_index('date_trunc')[['duration']].rolling(f'{work_period_window}D', min_periods=int(
+        min_periods_over_window_work * work_period_window)).mean()
+
+# def get_work_tmp(user_df, start_hour_day, end_hour_day, home_list):
+#     work_tmp = user_df[~(user_df['cluster_label'].isin(home_list))].copy()
+#     work_tmp = work_tmp[((work_tmp['t_start_hour'] >= start_hour_day + 4) & (work_tmp['t_end_hour'] <= end_hour_day - 6)) & (~work_tmp['weekday'].isin([1, 7]))]
+#     return work_tmp
+
+def get_work_tmp(user_df, start_hour_day, end_hour_day, home_list=None):
+    if home_list is not None:
+        work_tmp = user_df[~(user_df['cluster_label'].isin(home_list))].copy()
+    else:
+        work_tmp = user_df.copy()
+    work_tmp = work_tmp[((work_tmp['t_start_hour'] >= start_hour_day + 4) & (work_tmp['t_end_hour'] <= end_hour_day - 6)) & (~work_tmp['weekday'].isin([1, 7]))]
+    return work_tmp
+
+
+def compute_average_duration(work_tmp, work_activity_average, work_period_window, min_periods_over_window_work):
+    work_tmp = work_tmp[['cluster_label', 'date_trunc', 'duration']].groupby(['cluster_label', 'date_trunc']).sum().reset_index()
+    work_tmp = work_tmp.merge(work_tmp[['date_trunc', 'cluster_label', 'duration']].groupby(['cluster_label']).apply(work_rolling_on_date, work_period_window, min_periods_over_window_work).reset_index(), on=['date_trunc', 'cluster_label'], suffixes=('', '_average'))
+    work_tmp = work_tmp[(work_tmp.duration_average >= work_activity_average)]
+    return work_tmp.dropna(subset=['duration_average'])
+
+def add_work_label(user_df, work_tmp):
+    work_label = list(zip(work_tmp.cluster_label, work_tmp.date_trunc))
+    idx = pd.MultiIndex.from_frame(user_df[['cluster_label', 'date_trunc']])
+    user_df.loc[idx.isin(work_label), 'work_label'] = user_df.loc[idx.isin(work_label), 'cluster_label']
+    return user_df
+
+def interpolate_missing_dates_work(user_df, work_tmp):
+    first_day = work_tmp['date_trunc'].min()
+    last_day = work_tmp['date_trunc'].max()
+    base_dates = pd.date_range(start=first_day, end=last_day)
+    date_cluster = work_tmp.drop_duplicates(['cluster_label', 'date_trunc'])[['date_trunc', 'cluster_label']].copy()
+    date_cluster = date_cluster.drop_duplicates(['date_trunc'])
+    date_cluster = date_cluster.sort_values(by='date_trunc').set_index('date_trunc')
+    date_cluster = date_cluster.reindex(base_dates)
+    date_cluster = date_cluster.interpolate(method='nearest').ffill().bfill() if pd.notna(date_cluster['cluster_label']).sum() > 1 else date_cluster.ffill().bfill()
+    date_cluster.index.name = 'date_trunc'
+    date_cluster = date_cluster.reset_index()
+    work_label = list(zip(date_cluster.cluster_label, date_cluster.date_trunc))
+    idx = pd.MultiIndex.from_frame(user_df[['cluster_label', 'date_trunc']])
+    user_df.loc[idx.isin(work_label), 'location_type'] = 'W'
+    return user_df
+
+
+def get_labels_work(user_df, start_hour_day, end_hour_day, min_pings_home_cluster_label, work_activity_average, work_period_window, min_periods_over_window_work):
+    def pandas_labels_work(key, data):
+        user_df = data
+        # user_df['location_type'] = 'O'
+        #  user_df['work_label'] = -1
+        home_list = user_df.loc[user_df["location_type"] == "H"]#.unique()
+        if home_list.empty:
+            home_list = None
+        else:
+            home_list = home_list["cluster_label"].unique()
+        work_tmp = get_work_tmp(user_df, start_hour_day, end_hour_day, home_list)
+        # work_tmp = get_work_tmp(user_df, start_hour_day, end_hour_day)
+        if work_tmp.empty:
+            return user_df
+        work_tmp = compute_average_duration(work_tmp, work_activity_average, work_period_window, min_periods_over_window_work)
+        if work_tmp.empty:
+            return user_df
+        user_df = add_work_label(user_df, work_tmp)
+        user_df = interpolate_missing_dates_work(user_df, work_tmp)
+        return remove_unused_cols(user_df)
+
+    schema_df = StructType([
+    StructField('uid', StringType(), False),
+    StructField('t_start', LongType(), False),
+    StructField('t_end', LongType(), False),
+    StructField('duration', LongType(), False),
+    StructField('latitude', DoubleType(), False),
+    StructField('longitude', DoubleType(), False),
+    StructField('total_duration_stop_location', LongType(), False),
+    StructField('total_pings_stop', LongType(), False),
+    StructField('cluster_label', LongType(), False),
+    StructField('median_accuracy', DoubleType(), False),
+    StructField('location_type', StringType(), True),
+    StructField('home_label', LongType(), True),
+    StructField('work_label', LongType(), True),
+    StructField('geom_id', StringType(), False),
+    StructField('date', TimestampType(), True),
+    StructField('t_start_hour', IntegerType(), True),
+    StructField('t_end_hour', IntegerType(), True),
+    StructField('weekday', IntegerType(), True),
+    StructField("date_trunc", TimestampType(), True)
+    ])
+
+    return user_df.groupBy("uid").applyInPandas(pandas_labels_work, schema=schema_df)
