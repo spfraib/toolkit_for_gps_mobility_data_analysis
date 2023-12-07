@@ -40,11 +40,14 @@ toolkit_for_gps_mobility_data_analysis
 
 ## 📍Overview
 
-The toolkit_for_gps_mobility_data_analysis is a Python package for performing analysis of GPS-based mobility data. It provides an easy-to-use API
+The toolkit_for_gps_mobility_data_analysis is a Python package designed for comprehensive analysis of GPS-based mobility data. It offers a user-friendly API to facilitate the processing and analysis of GPS data, making it an essential tool for researchers and developers working in the field of mobility analysis.
+
 
 ## 🔮 Feautres
 
-> `[📌  INSERT-PROJECT-FEATURES]`
+- Data Processing: Efficient handling and processing of large-scale GPS data.
+- Analysis Tools: Advanced tools for analyzing mobility patterns, stops, and routes.
+- Customizable Workflows: Flexible architecture to adapt to various analysis needs.
 
 ---
 
@@ -163,7 +166,15 @@ repo
 ### ✅ Prerequisites
 
 Before you begin, ensure that you have the following prerequisites installed:
-> `[📌  INSERT-PROJECT-PREREQUISITES]`
+- Pyspark 3 <
+
+There is an development environment in the infrastructure directory. You would need to install docker-compose [https://docs.docker.com/compose/] and run the following command in the mentioned directory:
+
+```
+docker-compose up
+```
+
+This gives you all the requirements for running a Spark cluster in your local machine using docker containers.
 
 ### 💻 Installation
 
@@ -179,19 +190,17 @@ cd toolkit_for_gps_mobility_data_analysis
 
 3. Install the dependencies:
 ```sh
-pip install -r requirements.txt
+pip install .
 ```
 
 ### 🤖 Using toolkit_for_gps_mobility_data_analysis
 
-```sh
-python main.py
+```python
+import wbgps
 ```
 
-### 🧪 Running Tests
-```sh
-#run tests
-```
+### 🧪 Tests
+Check out our [example notebook](./examples/labels_stop_package.ipynb) for a quick demonstration of how to use the toolkit.
 
 <hr />
 
@@ -228,13 +237,10 @@ The project maintainers will review your changes and provide feedback or merge t
 
 ## 🪪 License
 
-This project is licensed under the `[📌  INSERT-LICENSE-TYPE]` License. See the [LICENSE](https://docs.github.com/en/communities/setting-up-your-project-for-healthy-contributions/adding-a-license-to-a-repository) file for additional info.
 
 ---
 
 ## 🙏 Acknowledgments
-
-[📌  INSERT-DESCRIPTION]
 
 
 ---
